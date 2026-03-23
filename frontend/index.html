@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Editor - Preview</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Lightroom-like Dark Theme */
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #252525;
+            --bg-tertiary: #2d2d2d;
+            --border-color: #3a3a3a;
+            --text-primary: #e8e8e8;
+            --text-secondary: #999;
+            --accent-color: #0066cc;
+            --accent-hover: #0052a3;
+            --success-color: #4a9e6f;
+        }
+
+        html, body { 
+            height: 100%; 
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .navbar { 
+            background-color: var(--bg-secondary) !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            height: 60px;
+            display: flex;
+            align-items: center;
+        }
+
+        .navbar-brand { 
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--text-primary) !important;
+        }
+
+        .navbar-text { 
+            color: var(--text-secondary) !important;
+            font-size: 0.85rem;
+        }
+
+        .auth-box {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 0.8rem;
+        }
+
+        .top-actions .btn {
+            text-transform: none;
+            letter-spacing: 0;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.8rem;
+        }
+
+        .auth-user {
+            color: #c9e1ff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* Progress Bar for RAW Processing */
+        .progress-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .progress-bar-bg {
+            height: 4px;
+            background-color: #333;
+            border-radius: 2px;
+            overflow: hidden;
+            border: 1px solid #444;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0066cc, #00ccff);
+            width: 0%;
+            transition: width 0.2s ease;
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(0, 150, 255, 0.6);
+        }
+
+        .progress-label {
+            font-size: 0.75rem;
+            color: #0099ff;
+            font-weight: 600;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        /* Sidebars */
+        .sidebar { 
+            overflow-y: auto;
+            overflow-x: hidden;
+            height: calc(100vh - 60px);
+            background-color: var(--bg-secondary) !important;
+            color: var(--text-primary) !important;
+            border-right: 1px solid var(--border-color);
+            padding: 1.5rem;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .sidebar h5 { 
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #f0f0f0;
+            margin-bottom: 1rem;
+        }
+
+        .sidebar h6 { 
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #b0b0b0;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Preview Panel */
+        .preview-panel { 
+            background-color: #0d0d0d;
+            height: calc(100vh - 60px);
+            padding: 0;
+        }
+
+        .preview-container { 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            position: relative;
+        }
+
+        .preview-container img {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+            filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.5));
+            border-radius: 2px;
+        }
+
+        #previewPlaceholder {
+            text-align: center;
+            opacity: 0.4;
+        }
+
+        #previewPlaceholder div {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Image List */
+        #imageList {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .image-item { 
+            padding: 0.8rem;
+            margin-bottom: 0.6rem;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+            background-color: var(--bg-tertiary);
+            font-size: 0.9rem;
+        }
+
+        .image-item:hover { 
+            border-color: var(--accent-color);
+            background-color: var(--bg-primary);
+            box-shadow: 0 2px 8px rgba(0, 102, 204, 0.15);
+        }
+
+        .image-item.active { 
+            border-color: var(--accent-color);
+            background-color: var(--accent-color);
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.25);
+        }
+
+        /* Forms */
+        .form-label { 
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-control { 
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 3px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus { 
+            background-color: var(--bg-tertiary);
+            border-color: var(--accent-color);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+            outline: none;
+        }
+
+        .form-control::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* Buttons */
+        .btn { 
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.65rem 1rem;
+            transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-primary { 
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) { 
+            background-color: var(--accent-hover);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-success { 
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) { 
+            background-color: #5cb383;
+            box-shadow: 0 4px 12px rgba(74, 158, 111, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-info { 
+            background-color: #0099ff;
+            color: white;
+        }
+
+        .btn-info:hover:not(:disabled) { 
+            background-color: #0077cc;
+            box-shadow: 0 4px 12px rgba(0, 153, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-warning { 
+            background-color: #ff9800;
+            color: white;
+        }
+
+        .btn-warning:hover:not(:disabled) { 
+            background-color: #e68900;
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-danger { 
+            background-color: #d32f2f;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) { 
+            background-color: #b71c1c;
+            box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* Grid */
+        .d-grid { 
+            gap: 0.6rem;
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        /* Alert */
+        .alert {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            color: var(--text-primary);
+            padding: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .alert-info {
+            border-color: var(--accent-color);
+            background-color: rgba(0, 102, 204, 0.1);
+        }
+
+        /* Image Details */
+        #imageDetails { 
+            line-height: 1.8;
+            font-size: 0.9rem;
+        }
+
+        #imageDetails div {
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #e4e4e4;
+            font-weight: 500;
+        }
+
+        #imageDetails strong {
+            color: #b8d7ff;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar .text-muted {
+            color: #bdbdbd !important;
+            opacity: 1;
+        }
+
+        /* Utility Classes */
+        .text-muted {
+            color: var(--text-secondary) !important;
+        }
+
+        .small {
+            font-size: 0.8rem;
+        }
+
+        .image-context-menu {
+            position: fixed;
+            min-width: 150px;
+            background: #242424;
+            border: 1px solid #424242;
+            border-radius: 6px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+            z-index: 9999;
+            overflow: hidden;
+        }
+
+        .image-context-menu button {
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: #d8dee7;
+            text-align: left;
+            padding: 0.55rem 0.75rem;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+
+        .image-context-menu button:hover {
+            background: #2f3b50;
+            color: #f3f7ff;
+        }
+
+        /* Smooth transitions */
+        a, button, input, select { 
+            transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            
+            .preview-panel {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1"> Photo Editor</span>
+            <div class="top-actions">
+                <button id="topPreviewBtn" class="btn btn-outline-info" disabled>Xem trước</button>
+                <button id="topEditBtn" class="btn btn-success" disabled>Chỉnh sửa</button>
+            </div>
+            <div class="auth-box ms-auto me-2">
+                <span id="authUserText" class="auth-user">Guest</span>
+                <button id="openAuthBtn" class="btn btn-sm btn-outline-light" style="text-transform:none; letter-spacing:0; padding:0.3rem 0.55rem;">Đăng nhập</button>
+                <button id="logoutBtn" class="btn btn-sm btn-outline-warning" style="display:none; text-transform:none; letter-spacing:0; padding:0.3rem 0.55rem;">Đăng xuất</button>
+            </div>
+            <span class="navbar-text text-secondary">Cửa sổ Preview</span>
+            <!-- Progress Bar -->
+            <div id="progressBarContainer" class="progress-bar-container" style="display: none; position: absolute; left: 20px; top: 12px;">
+                <div class="progress-bar-bg" style="width: 200px;">
+                    <div id="progressFillingBar" class="progress-bar-fill"></div>
+                </div>
+                <span id="progressLabel" class="progress-label">0%</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="row" style="margin: 0; height: calc(100vh - 60px);">
+        <!-- Left Panel -->
+        <div class="col-md-3 bg-light sidebar p-3">
+            <h5 class="mb-3">Tải ảnh lên</h5>
+            
+            <div class="mb-3">
+                <label for="fileInput" class="form-label">Chọn file ảnh:</label>
+                <input type="file" class="form-control" id="fileInput" accept="image/*,.arw,.nef,.cr2,.cr3,.dng,.tiff,.tif,.raf,.orf,.rw2,.srw,.x3f" multiple>
+                <small class="text-muted d-block mt-1">Hỗ trợ: JPG, PNG, TIFF, RAW (ARW, NEF, CR2, CR3, DNG, RAF, ORF, RW2, SRW, X3F)</small>
+            </div>
+
+            <button class="btn btn-primary w-100 mb-3" id="uploadBtn">
+                📤 Tải lên
+            </button>
+
+            <hr>
+
+            <h6 class="mb-2">Các ảnh đã tải</h6>
+            <div id="imageList" style="max-height: 400px; overflow-y: auto;">
+                <p class="text-muted small">Chưa có ảnh nào</p>
+            </div>
+        </div>
+
+        <!-- Middle Panel -->
+        <div class="col-md-6 preview-panel">
+            <div class="preview-container">
+                <div id="previewPlaceholder" class="text-white-50 text-center">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">📷</div>
+                    <p>Chọn một ảnh để xem preview</p>
+                </div>
+                <img id="previewImage" src="" alt="Preview" style="display: none; max-width: 100%; max-height: 100%; object-fit: contain;">
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="col-md-3 bg-light sidebar p-3">
+            <h5 class="mb-3">Tùy chọn</h5>
+
+            <div id="selectedImageInfo" class="alert alert-info d-none mb-3" role="alert">
+                <small id="selectedImageText"></small>
+            </div>
+
+            <hr>
+
+            <h6 class="mb-2">Thông tin Chi tiết</h6>
+            <div id="imageDetails" class="small">
+                <p class="text-muted">Chọn ảnh để xem thông tin</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="imageContextMenu" class="image-context-menu" style="display:none;">
+        <button id="ctxDeleteBtn">🗑️ Xóa ảnh</button>
+        <button id="ctxExportBtn">💾 Xuất ảnh</button>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="modal fade" id="authModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Tài khoản</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2" style="display:flex; gap: 1rem; align-items:center;">
+                        <label><input type="radio" name="authMode" value="login" checked> Đăng nhập</label>
+                        <label><input type="radio" name="authMode" value="register"> Tạo tài khoản</label>
+                    </div>
+                    <div class="mb-3" id="authNameWrap" style="display:none;">
+                        <label for="authNameInput" class="form-label">Tên hiển thị</label>
+                        <input type="text" class="form-control" id="authNameInput" placeholder="Tên của bạn">
+                    </div>
+                    <div class="mb-3">
+                        <label for="authEmailInput" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="authEmailInput" placeholder="you@example.com">
+                    </div>
+                    <div class="mb-1">
+                        <label for="authPasswordInput" class="form-label">Mật khẩu</label>
+                        <input type="password" class="form-control" id="authPasswordInput" placeholder="Tối thiểu 6 ký tự">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-success" id="submitAuthBtn">Xác nhận</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE_URL = 'http://localhost:5000/api';
+        const AUTH_TOKEN_KEY = 'photoEditorAuthToken';
+        const AUTH_USER_KEY = 'photoEditorAuthUser';
+        let selectedImage = null;
+        let uploadedImages = [];
+        let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+        let currentUser = null;
+        let contextMenuImageIndex = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            setupEventListeners();
+            await initAuthState();
+            await restoreWorkspace();
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            console.log('✓ Photo Editor Preview loaded');
+        });
+
+        // Progress Bar Functions
+        function showProgressBar(text = 'Processing...') {
+            const container = document.getElementById('progressBarContainer');
+            const label = document.getElementById('progressLabel');
+            container.style.display = 'flex';
+            label.textContent = text;
+        }
+
+        function updateProgress(percentage) {
+            const bar = document.getElementById('progressFillingBar');
+            const label = document.getElementById('progressLabel');
+            bar.style.width = percentage + '%';
+            label.textContent = Math.round(percentage) + '%';
+        }
+
+        function hideProgressBar() {
+            const container = document.getElementById('progressBarContainer');
+            container.style.display = 'none';
+        }
+
+        function setupEventListeners() {
+            document.getElementById('uploadBtn').addEventListener('click', handleUpload);
+            document.getElementById('topEditBtn').addEventListener('click', openEditWindow);
+            document.getElementById('topPreviewBtn').addEventListener('click', handleTopPreview);
+            document.getElementById('openAuthBtn').addEventListener('click', openAuthModal);
+            document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+            document.getElementById('submitAuthBtn').addEventListener('click', submitAuth);
+            document.querySelectorAll('input[name="authMode"]').forEach((radio) => {
+                radio.addEventListener('change', toggleAuthMode);
+            });
+
+            document.getElementById('ctxDeleteBtn').addEventListener('click', handleContextDelete);
+            document.getElementById('ctxExportBtn').addEventListener('click', handleContextExport);
+            window.addEventListener('click', closeContextMenu);
+            window.addEventListener('scroll', closeContextMenu, true);
+        }
+
+        function handleTopPreview() {
+            if (selectedImage === null) return;
+            selectImage(selectedImage);
+        }
+
+        function getAuthHeaders(extra = {}) {
+            const headers = { ...extra };
+            if (authToken) {
+                headers.Authorization = `Bearer ${authToken}`;
+            }
+            return headers;
+        }
+
+        async function authFetch(url, options = {}) {
+            const headers = getAuthHeaders(options.headers || {});
+            return fetch(url, { ...options, headers });
+        }
+
+        function getWorkspaceStorageKey() {
+            const userId = currentUser?.id || 'guest';
+            return `photoEditorWorkspace_${userId}`;
+        }
+
+        function getGuestSessionStorageKey() {
+            return 'photoEditorWorkspace_guest_session';
+        }
+
+        function saveAuthSession(token, user) {
+            authToken = token || '';
+            currentUser = user || null;
+            if (authToken) {
+                localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+            } else {
+                localStorage.removeItem(AUTH_TOKEN_KEY);
+            }
+
+            if (currentUser) {
+                localStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+            } else {
+                localStorage.removeItem(AUTH_USER_KEY);
+            }
+
+            refreshAuthUI();
+        }
+
+        function refreshAuthUI() {
+            const authText = document.getElementById('authUserText');
+            const loginBtn = document.getElementById('openAuthBtn');
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (currentUser) {
+                authText.textContent = currentUser.name || currentUser.email;
+                loginBtn.style.display = 'none';
+                logoutBtn.style.display = 'inline-block';
+            } else {
+                authText.textContent = 'Guest';
+                loginBtn.style.display = 'inline-block';
+                logoutBtn.style.display = 'none';
+            }
+        }
+
+        async function initAuthState() {
+            const raw = localStorage.getItem(AUTH_USER_KEY);
+            if (raw) {
+                try { currentUser = JSON.parse(raw); } catch { currentUser = null; }
+            }
+
+            if (!authToken) {
+                refreshAuthUI();
+                return;
+            }
+
+            try {
+                const meResponse = await authFetch(`${API_BASE_URL}/auth/me`);
+                if (!meResponse.ok) {
+                    saveAuthSession('', null);
+                    return;
+                }
+                const meData = await meResponse.json();
+                saveAuthSession(authToken, meData.user || null);
+            } catch {
+                saveAuthSession('', null);
+            }
+        }
+
+        function toggleAuthMode() {
+            const mode = document.querySelector('input[name="authMode"]:checked')?.value || 'login';
+            const nameWrap = document.getElementById('authNameWrap');
+            nameWrap.style.display = mode === 'register' ? 'block' : 'none';
+        }
+
+        function openAuthModal() {
+            document.querySelector('input[name="authMode"][value="login"]').checked = true;
+            document.getElementById('authNameInput').value = '';
+            document.getElementById('authEmailInput').value = '';
+            document.getElementById('authPasswordInput').value = '';
+            toggleAuthMode();
+            const modal = new bootstrap.Modal(document.getElementById('authModal'));
+            modal.show();
+        }
+
+        async function submitAuth() {
+            const mode = document.querySelector('input[name="authMode"]:checked')?.value || 'login';
+            const name = document.getElementById('authNameInput').value.trim();
+            const email = document.getElementById('authEmailInput').value.trim();
+            const password = document.getElementById('authPasswordInput').value;
+
+            if (!email || !password) {
+                alert('Vui lòng nhập đầy đủ email và mật khẩu.');
+                return;
+            }
+
+            try {
+                const body = mode === 'register' ? { name, email, password } : { email, password };
+                const response = await fetch(`${API_BASE_URL}/auth/${mode}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Đăng nhập thất bại');
+                }
+
+                saveAuthSession(data.token, data.user);
+                bootstrap.Modal.getInstance(document.getElementById('authModal')).hide();
+                await restoreWorkspace();
+                alert('✓ Đăng nhập thành công!');
+            } catch (error) {
+                alert(`✗ ${error.message}`);
+            }
+        }
+
+        async function handleLogout() {
+            saveAuthSession('', null);
+            uploadedImages = [];
+            selectedImage = null;
+            updateImageList();
+            document.getElementById('previewImage').style.display = 'none';
+            document.getElementById('previewPlaceholder').style.display = 'block';
+            document.getElementById('imageDetails').innerHTML = '<p class="text-muted">Chọn ảnh để xem thông tin</p>';
+            document.getElementById('topEditBtn').disabled = true;
+            document.getElementById('topPreviewBtn').disabled = true;
+        }
+
+        async function restoreWorkspace() {
+            uploadedImages = [];
+            selectedImage = null;
+
+            try {
+                if (authToken) {
+                    const response = await authFetch(`${API_BASE_URL}/auth/workspace`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        uploadedImages = Array.isArray(data.workspace?.images) ? data.workspace.images : [];
+                    }
+                }
+            } catch (error) {
+                console.warn('Workspace server restore failed:', error.message);
+            }
+
+            if (!uploadedImages.length) {
+                const local = authToken
+                    ? localStorage.getItem(getWorkspaceStorageKey())
+                    : sessionStorage.getItem(getGuestSessionStorageKey());
+                if (local) {
+                    try { uploadedImages = JSON.parse(local) || []; } catch { uploadedImages = []; }
+                }
+            }
+
+            updateImageList();
+        }
+
+        async function persistWorkspace() {
+            const serialized = JSON.stringify(uploadedImages);
+            if (authToken) {
+                localStorage.setItem(getWorkspaceStorageKey(), serialized);
+            } else {
+                sessionStorage.setItem(getGuestSessionStorageKey(), serialized);
+            }
+
+            if (!authToken) return;
+            try {
+                await authFetch(`${API_BASE_URL}/auth/workspace`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        images: uploadedImages,
+                        lastImage: selectedImage !== null ? uploadedImages[selectedImage]?.filename : null
+                    })
+                });
+            } catch (error) {
+                console.warn('Workspace sync failed:', error.message);
+            }
+        }
+
+        function handleBeforeUnload() {
+            if (authToken) return;
+
+            sessionStorage.removeItem(getGuestSessionStorageKey());
+            sessionStorage.removeItem('currentEditImage');
+
+            try {
+                fetch(`${API_BASE_URL}/auth/guest/reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                    body: JSON.stringify({ reset: true })
+                });
+            } catch {
+                // Ignore unload cleanup failures
+            }
+        }
+
+        function formatFileSize(bytes) {
+            const size = Number(bytes) || 0;
+            if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+            return `${(size / 1024 / 1024).toFixed(1)} MB`;
+        }
+
+        function renderImageDetails(image, metadata = {}) {
+            const typeLabel = metadata.isRaw ? 'RAW' : (metadata.format?.toUpperCase() || 'Image');
+            const sizeInfo = (metadata.width && metadata.height) ? `${metadata.width}x${metadata.height} px` : 'N/A';
+            const details = [
+                `<div><strong>Tên:</strong> ${image.originalName}</div>`,
+                `<div><strong>Type:</strong> ${typeLabel}</div>`,
+                `<div><strong>Kích thước:</strong> ${sizeInfo}</div>`,
+                `<div><strong>Format:</strong> ${metadata.format?.toUpperCase() || 'Unknown'}</div>`,
+                `<div><strong>Dung lượng:</strong> ${formatFileSize(metadata.fileSize)}</div>`
+            ];
+
+            const raw = metadata.rawDetails || {};
+            if (metadata.isRaw) {
+                const extra = [
+                    ['Camera', [raw.cameraMaker, raw.cameraModel].filter(Boolean).join(' ')],
+                    ['Date taken', raw.dateTaken],
+                    ['ISO speed', raw.iso ? `ISO-${raw.iso}` : ''],
+                    ['F-stop', raw.fStop],
+                    ['Exposure time', raw.exposureTime],
+                    ['Exposure bias', raw.exposureBias],
+                    ['Exposure program', raw.exposureProgram],
+                    ['Metering mode', raw.meteringMode],
+                    ['Flash mode', raw.flashMode],
+                    ['Focal length', raw.focalLength],
+                    ['Lens maker', raw.lensMaker],
+                    ['Lens model', raw.lensModel],
+                    ['Camera serial', raw.serialNumber]
+                ];
+
+                extra.forEach(([label, value]) => {
+                    if (value) {
+                        details.push(`<div><strong>${label}:</strong> ${value}</div>`);
+                    }
+                });
+            }
+
+            document.getElementById('imageDetails').innerHTML = details.join('');
+        }
+
+        async function handleUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+
+            if (files.length === 0) {
+                alert('Vui lòng chọn ít nhất một file');
+                return;
+            }
+
+            showLoading(true);
+            showProgressBar('0%');
+
+            for (let file of files) {
+                try {
+                    console.log(`📤 Uploading: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                    
+                    // Upload with progress tracking
+                    await uploadFileWithProgress(file);
+
+                    console.log(`✓ Upload: ${file.name}`);
+                } catch (error) {
+                    console.error(`❌ Lỗi upload: ${error.message}`);
+                    alert(`❌ Lỗi upload file ${file.name}:\n${error.message}`);
+                }
+            }
+
+            hideProgressBar();
+            showLoading(false);
+            fileInput.value = '';
+            updateImageList();
+        }
+
+        // Upload file with progress tracking
+        function uploadFileWithProgress(file) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const xhr = new XMLHttpRequest();
+
+                // Track upload progress
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const progress = (e.loaded / e.total) * 100;
+                        updateProgress(progress);
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            uploadedImages.push({
+                                filename: data.filename,
+                                originalName: data.originalName,
+                                path: data.path
+                            });
+                            resolve(data);
+                        } catch (e) {
+                            reject(new Error('Invalid response format'));
+                        }
+                    } else {
+                        try {
+                            const errorData = JSON.parse(xhr.responseText);
+                            reject(new Error(errorData.error || `Upload failed (${xhr.status})`));
+                        } catch (e) {
+                            reject(new Error(`Upload failed (${xhr.status})`));
+                        }
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    reject(new Error('Network error'));
+                });
+
+                xhr.addEventListener('abort', () => {
+                    reject(new Error('Upload cancelled'));
+                });
+
+                xhr.open('POST', `${API_BASE_URL}/upload`);
+                if (authToken) {
+                    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+                }
+                xhr.send(formData);
+            });
+        }
+
+        function updateImageList() {
+            const imageList = document.getElementById('imageList');
+
+            if (uploadedImages.length === 0) {
+                imageList.innerHTML = '<p class="text-muted small">Chưa có ảnh nào</p>';
+                return;
+            }
+
+            imageList.innerHTML = uploadedImages
+                .map((img, idx) => `
+                    <div class="image-item ${selectedImage === idx ? 'active' : ''}" onclick="selectImage(${idx})" oncontextmenu="openImageContextMenu(event, ${idx})">
+                        <strong style="font-size: 0.9rem;">${img.originalName}</strong>
+                    </div>
+                `)
+                .join('');
+
+            persistWorkspace();
+        }
+
+        function openImageContextMenu(event, index) {
+            event.preventDefault();
+            contextMenuImageIndex = index;
+            if (selectedImage !== index) {
+                selectImage(index);
+            }
+
+            const menu = document.getElementById('imageContextMenu');
+            menu.style.display = 'block';
+
+            const menuWidth = 170;
+            const menuHeight = 90;
+            let x = event.clientX;
+            let y = event.clientY;
+            if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8;
+            if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8;
+
+            menu.style.left = `${x}px`;
+            menu.style.top = `${y}px`;
+        }
+
+        function closeContextMenu() {
+            const menu = document.getElementById('imageContextMenu');
+            menu.style.display = 'none';
+        }
+
+        function handleContextDelete() {
+            if (contextMenuImageIndex === null) return;
+            closeContextMenu();
+            handleDelete(contextMenuImageIndex);
+        }
+
+        async function handleContextExport() {
+            if (contextMenuImageIndex === null) return;
+            closeContextMenu();
+
+            const image = uploadedImages[contextMenuImageIndex];
+            if (!image) return;
+
+            try {
+                const response = await authFetch(`${API_BASE_URL}/image/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: image.filename, format: 'jpeg', quality: 90, ppi: 300 })
+                });
+                if (!response.ok) throw new Error('Export failed');
+                const data = await response.json();
+                const link = document.createElement('a');
+                link.href = data.exportPath;
+                link.download = `${(image.originalName || 'image').replace(/\.[^/.]+$/, '')}-export.jpeg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                alert(`Lỗi xuất ảnh: ${error.message}`);
+            }
+        }
+
+        async function selectImage(index) {
+            selectedImage = index;
+            const image = uploadedImages[index];
+            updateImageList();
+
+            const previewImage = document.getElementById('previewImage');
+            const previewPlaceholder = document.getElementById('previewPlaceholder');
+
+            showLoading(true);
+
+            // Check if RAW file
+            const ext = image.originalName.split('.').pop().toLowerCase();
+            const isRaw = ['arw', 'nef', 'cr2', 'cr3', 'dng', 'raf', 'orf', 'rw2', 'srw', 'x3f'].includes(ext);
+            
+            if (isRaw) {
+                showProgressBar('Xử lý RAW...');
+            }
+
+            try {
+                // Get metadata first - but don't fail if it errors
+                let metadata = {};
+                try {
+                    const metaResponse = await authFetch(`${API_BASE_URL}/image/metadata/${image.filename}`);
+                    if (metaResponse.ok) {
+                        metadata = await metaResponse.json();
+                    } else {
+                        console.warn(`⚠️ Metadata fetch returned ${metaResponse.status}`);
+                    }
+                } catch (metaError) {
+                    console.warn(`⚠️ Metadata fetch error: ${metaError.message} - continuing anyway`);
+                    metadata.isRaw = isRaw;
+                }
+
+                // Generate preview (works for both RAW and standard formats)
+                console.log(`📸 Requesting preview for: ${image.originalName}`);
+                const previewResponse = await authFetch(`${API_BASE_URL}/image/preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: image.filename })
+                });
+
+                if (!previewResponse.ok) {
+                    const errorData = await previewResponse.json().catch(() => ({}));
+                    throw new Error(`Preview: ${errorData.error || previewResponse.statusText}`);
+                }
+
+                const previewData = await previewResponse.json();
+                const previewUrl = previewData.previewPath + '?t=' + Date.now();
+                
+                console.log(`🎬 Preview URL received: ${previewUrl}`);
+
+                // Set up image load handlers BEFORE setting src
+                previewImage.onload = () => {
+                    console.log(`✓ Preview image loaded successfully`);
+                    previewImage.style.display = 'block';
+                    previewPlaceholder.style.display = 'none';
+                    hideProgressBar();
+                    showLoading(false);
+                };
+
+                previewImage.onerror = () => {
+                    console.error(`✗ Failed to load preview image from: ${previewUrl}`);
+                    previewPlaceholder.innerHTML = `
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                        <p style="color: #f44336;">Failed to load preview</p>
+                        <p style="font-size: 0.85rem; color: #999;">File may not be supported</p>
+                    `;
+                    previewPlaceholder.style.display = 'block';
+                    previewImage.style.display = 'none';
+                    hideProgressBar();
+                    showLoading(false);
+                };
+
+                // NOW set src to trigger load
+                previewImage.src = previewUrl;
+
+                // Show metadata
+                renderImageDetails(image, metadata);
+
+                document.getElementById('selectedImageInfo').classList.remove('d-none');
+                document.getElementById('selectedImageText').textContent = `Đã chọn: ${image.originalName}`;
+            } catch (error) {
+                console.error('❌ Lỗi selectImage:', error.message);
+                showLoading(false);
+                previewPlaceholder.innerHTML = `
+                    <div style="font-size: 2rem; margin-bottom: 1rem;">❌</div>
+                    <p style="color: #f44336;">Error</p>
+                    <p style="font-size: 0.85rem; color: #999;">${error.message}</p>
+                `;
+                previewPlaceholder.style.display = 'block';
+                previewImage.style.display = 'none';
+            }
+
+            document.getElementById('topEditBtn').disabled = false;
+            document.getElementById('topPreviewBtn').disabled = false;
+        }
+
+        function openEditWindow() {
+            if (selectedImage === null) return;
+            const image = uploadedImages[selectedImage];
+            sessionStorage.setItem('currentEditImage', image.filename);
+            window.open('edit.html', '_blank', 'width=1400,height=800');
+        }
+
+        function handleDelete(indexToDelete = null) {
+            const deleteIndex = indexToDelete !== null ? indexToDelete : selectedImage;
+            if (deleteIndex === null || deleteIndex < 0 || deleteIndex >= uploadedImages.length) return;
+            if (!confirm('Xóa ảnh này?')) return;
+
+            uploadedImages.splice(deleteIndex, 1);
+            selectedImage = null;
+
+            document.getElementById('previewImage').style.display = 'none';
+            document.getElementById('previewPlaceholder').style.display = 'block';
+            document.getElementById('selectedImageInfo').classList.add('d-none');
+            document.getElementById('topEditBtn').disabled = true;
+            document.getElementById('topPreviewBtn').disabled = true;
+            document.getElementById('imageDetails').innerHTML = '<p class="text-muted">Chọn ảnh để xem thông tin</p>';
+
+            updateImageList();
+        }
+
+        function showLoading(show) {
+            // Loading indicator
+        }
+    </script>
+</body>
+</html>

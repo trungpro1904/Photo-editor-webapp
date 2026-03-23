@@ -1,0 +1,165 @@
+/* Edit Page Specific Styles */
+.edit-controls {
+    background-color: #f8f9fa !important;
+    border-right: 1px solid #dee2e6;
+}
+
+.edit-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.edit-section:last-child {
+    border-bottom: none;
+}
+
+.edit-section label {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+.edit-section small {
+    display: inline-block;
+    color: #6c757d;
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+.form-range {
+    cursor: pointer;
+}
+
+.form-range::-webkit-slider-thumb {
+    background-color: #0d6efd;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.form-range::-moz-range-thumb {
+    background-color: #0d6efd;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.form-range::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, #dc3545, #ffc107, #28a745);
+    height: 0.5rem;
+    border-radius: 4px;
+}
+
+/* Buttons in edit section */
+.edit-section .btn {
+    font-size: 0.9rem;
+}
+
+.edit-section .btn-group-vertical {
+    gap: 0.5rem;
+}
+
+/* Preset section */
+.form-select {
+    font-size: 0.9rem;
+}
+
+#presetSelect {
+    margin-bottom: 0.5rem;
+}
+
+#applyPresetBtn {
+    font-size: 0.85rem;
+}
+
+/* Input group for preset name */
+.input-group-sm .form-control,
+.input-group-sm .btn {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+}
+
+#presetName {
+    font-size: 0.85rem;
+}
+
+/* Right sidebar info section */
+.bg-light {
+    background-color: #f8f9fa !important;
+}
+
+#imageInfo {
+    background-color: #e8f4f8;
+    padding: 1rem;
+    border-radius: 4px;
+    border-left: 4px solid #0d6efd;
+}
+
+#editHistory {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Alert in modal */
+.modal-body .alert {
+    margin-bottom: 1rem;
+}
+
+/* Export modal */
+#exportModal .btn-group-vertical {
+    gap: 0.5rem;
+}
+
+#exportModal .btn-check:checked + label {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+
+#exportModal .form-range {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Information text */
+#infoText {
+    line-height: 1.6;
+}
+
+ul.small li {
+    margin-bottom: 0.5rem;
+}
+
+/* Buttons state */
+button:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+button:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Scrollbar styling */
+.edit-controls::-webkit-scrollbar,
+#editHistory::-webkit-scrollbar {
+    width: 6px;
+}
+
+.edit-controls::-webkit-scrollbar-track,
+#editHistory::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.edit-controls::-webkit-scrollbar-thumb,
+#editHistory::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.edit-controls::-webkit-scrollbar-thumb:hover,
+#editHistory::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}

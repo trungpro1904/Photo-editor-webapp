@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Editor - Chỉnh sửa</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #252525;
+            --bg-tertiary: #2d2d2d;
+            --border-color: #3a3a3a;
+            --text-primary: #e8e8e8;
+            --text-secondary: #999;
+            --accent-color: #0066cc;
+        }
+
+        html, body {
+            height: 100%;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .navbar {
+            background-color: var(--bg-secondary) !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .navbar-brand { font-size: 1.2rem; font-weight: 600; color: var(--text-primary) !important; }
+
+        /* Progress Bar for RAW Processing */
+        .progress-bar-container {
+            position: absolute;
+            top: 12px;
+            left: 20px;
+            width: 200px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .progress-bar-bg {
+            flex: 1;
+            height: 4px;
+            background-color: #333;
+            border-radius: 2px;
+            overflow: hidden;
+            border: 1px solid #444;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0066cc, #00ccff);
+            width: 0%;
+            transition: width 0.2s ease;
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(0, 150, 255, 0.6);
+        }
+
+        .progress-label {
+            font-size: 0.75rem;
+            color: #0099ff;
+            font-weight: 600;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .container-fluid { height: calc(100vh - 60px); display: flex; gap: 0; }
+
+        /* Sidebars */
+        .sidebar {
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .sidebar::-webkit-scrollbar { width: 8px; }
+        .sidebar::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        .sidebar::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        .sidebar-left { width: 240px; }
+        .sidebar-right { width: 320px; }
+
+        .sidebar h5 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #f0f0f0;
+            margin-bottom: 0.8rem;
+            margin-top: 0;
+        }
+
+        .sidebar h6 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #b0b0b0;
+            margin-bottom: 0.6rem;
+            margin-top: 1rem;
+        }
+
+        /* Center Preview */
+        .preview-center {
+            flex: 1;
+            background-color: #0d0d0d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .preview-center.grab {
+            cursor: grab;
+        }
+
+        .preview-center.grabbing {
+            cursor: grabbing;
+        }
+
+        .preview-stage {
+            max-width: 100%;
+            max-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform-origin: center center;
+            will-change: transform;
+            transition: transform 0.08s linear;
+        }
+
+        .preview-stage img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.5));
+        }
+
+        .zoom-indicator {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            background: rgba(15, 15, 15, 0.78);
+            border: 1px solid var(--border-color);
+            color: #e9edf4;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            border-radius: 4px;
+            padding: 5px 9px;
+            z-index: 20;
+            user-select: none;
+        }
+
+        /* Histogram */
+        .histogram-panel {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .histogram-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 0.6rem;
+        }
+
+        canvas#histogram {
+            width: 100%;
+            height: auto;
+            display: block;
+            background-color: #1a1a1a;
+            border-radius: 2px;
+        }
+
+        /* Adjustment Sections */
+        .adjustment-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .adjustment-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .slider-group {
+            margin-bottom: 1rem;
+        }
+
+        .slider-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+        }
+
+        .slider-value {
+            color: var(--accent-color);
+            font-weight: 600;
+            font-size: 0.8rem;
+            min-width: 35px;
+            text-align: right;
+        }
+
+        /* Range Input */
+        input[type="range"] {
+            width: 100%;
+            height: 3px;
+            border-radius: 2px;
+            background: linear-gradient(to right, #333, #444, #333);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 102, 204, 0.4);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 102, 204, 0.4);
+        }
+
+        input[type="range"]::-moz-range-track { background: transparent; border: none; }
+
+        .color-mode-toggle {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 0.7rem;
+        }
+
+        .mode-text-btn {
+            background: transparent;
+            border: none;
+            color: #9ba3ac;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        .mode-text-btn.active {
+            color: #e8edf5;
+        }
+
+        .color-zone-row {
+            display: flex;
+            gap: 0.45rem;
+            align-items: center;
+            margin-bottom: 0.55rem;
+            flex-wrap: wrap;
+        }
+
+        .zone-dot {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 2px solid #1f1f1f;
+            box-shadow: 0 0 0 1px #535353;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .zone-dot.active {
+            transform: scale(1.08);
+            box-shadow: 0 0 0 2px #d6d6d6;
+        }
+
+        #selectedColorName {
+            color: #d5dbe4;
+            font-size: 0.82rem;
+            margin-bottom: 0.45rem;
+        }
+
+        /* Buttons */
+        .btn {
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.5rem 0.8rem;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-success { background-color: #4a9e6f; color: white; }
+        .btn-success:hover:not(:disabled) { background-color: #5cb383; box-shadow: 0 4px 12px rgba(74, 158, 111, 0.3); }
+
+        .btn-warning { background-color: #ff9800; color: white; }
+        .btn-warning:hover:not(:disabled) { background-color: #e68900; }
+
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-group-vertical { gap: 0.5rem; display: flex; flex-direction: column; }
+
+        /* Forms */
+        .form-select, .form-control {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 3px;
+            font-size: 0.85rem;
+        }
+
+        .form-select:focus, .form-control:focus {
+            background-color: var(--bg-tertiary);
+            border-color: var(--accent-color);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+            outline: none;
+        }
+
+        .small { font-size: 0.8rem; }
+        .text-muted { color: var(--text-secondary) !important; }
+        hr { border-color: var(--border-color); margin: 1.5rem 0; }
+
+        .preset-item {
+            padding: 0.55rem 0.65rem;
+            background: #2b2b2b;
+            border: 1px solid #3b3b3b;
+            border-radius: 4px;
+            margin-bottom: 0.45rem;
+            font-size: 0.82rem;
+            color: #d8dde5;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .preset-item:hover {
+            border-color: #5f83b8;
+            background: #313743;
+            color: #f1f6ff;
+        }
+
+        .preset-item.active {
+            border-color: #3c8cff;
+            box-shadow: 0 0 0 1px rgba(60, 140, 255, 0.3);
+            background: #25364f;
+            color: #f1f6ff;
+        }
+
+        /* Modal */
+        .modal-content {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .modal-header { background-color: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); }
+        .modal-title { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-close { filter: brightness(0.7); }
+
+        .preset-location-row {
+            display: flex;
+            gap: 0.8rem;
+            align-items: center;
+            margin-bottom: 0.7rem;
+        }
+
+        .preset-location-row label {
+            font-size: 0.82rem;
+            color: #c9d0d8;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark">
+        <span class="navbar-brand">📸 Photo Editor</span>
+        <!-- Progress Bar for RAW Processing -->
+        <div id="progressBarContainer" class="progress-bar-container" style="display: none;">
+            <div class="progress-bar-bg">
+                <div id="progressFillingBar" class="progress-bar-fill"></div>
+            </div>
+            <span id="progressLabel" class="progress-label">0%</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <!-- Left Sidebar: Presets/Navigator -->
+        <div class="sidebar sidebar-left">
+            <h5>Navigator</h5>
+            <div id="navigatorPreview" style="width: 100%; height: 150px; background-color: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: center;">
+                <span class="text-muted" style="font-size: 0.85rem;">Preview</span>
+            </div>
+
+            <h6>Presets</h6>
+            <div id="presetsList" style="max-height: 300px; overflow-y: auto;">
+                <p class="text-muted small">Không có presets</p>
+            </div>
+        </div>
+
+        <!-- Center: Image Preview -->
+        <div class="preview-center">
+            <div id="zoomIndicator" class="zoom-indicator">100%</div>
+            <div id="previewStage" class="preview-stage">
+                <img id="editPreview" src="" alt="Preview">
+            </div>
+        </div>
+
+        <!-- Right Sidebar: Histogram & Adjustments -->
+        <div class="sidebar sidebar-right">
+            <!-- Histogram -->
+            <div class="histogram-panel">
+                <div class="histogram-label">Histogram</div>
+                <canvas id="histogram" width="280" height="60" style="border-radius: 2px;"></canvas>
+            </div>
+
+            <!-- White Balance Section -->
+            <div class="adjustment-section">
+                <h6>White Balance</h6>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Temperature</span>
+                        <span class="slider-value" id="temperatureValue">0</span>
+                    </div>
+                    <input type="range" id="temperature" min="-100" max="100" value="0">
+                    <small class="text-muted" style="font-size: 0.75rem;">← Cooler | Warmer →</small>
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Tint</span>
+                        <span class="slider-value" id="tintValue">0</span>
+                    </div>
+                    <input type="range" id="tint" min="-100" max="100" value="0">
+                    <small class="text-muted" style="font-size: 0.75rem;">← Magenta | Green →</small>
+                </div>
+            </div>
+
+            <!-- Light Section -->
+            <div class="adjustment-section">
+                <h6>Light</h6>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Exposure</span>
+                        <span class="slider-value" id="brightnessValue">0</span>
+                    </div>
+                    <input type="range" id="brightness" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Contrast</span>
+                        <span class="slider-value" id="contrastValue">0</span>
+                    </div>
+                    <input type="range" id="contrast" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Highlights</span>
+                        <span class="slider-value" id="highlightsValue">0</span>
+                    </div>
+                    <input type="range" id="highlights" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Shadows</span>
+                        <span class="slider-value" id="shadowsValue">0</span>
+                    </div>
+                    <input type="range" id="shadows" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Whites</span>
+                        <span class="slider-value" id="whitesValue">0</span>
+                    </div>
+                    <input type="range" id="whites" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Blacks</span>
+                        <span class="slider-value" id="blacksValue">0</span>
+                    </div>
+                    <input type="range" id="blacks" min="-100" max="100" value="0">
+                </div>
+            </div>
+
+            <!-- Color Grading Section -->
+            <div class="adjustment-section">
+                <h6>Color Grading</h6>
+                <div style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; padding: 0.6rem; margin-bottom: 1rem;">
+                    <div class="color-mode-toggle">
+                        <button type="button" id="modeColorBtn" class="mode-text-btn active">Color</button>
+                        <button type="button" id="modeBwBtn" class="mode-text-btn">B&W</button>
+                    </div>
+
+                    <div id="colorZoneControls">
+                        <div class="color-zone-row">
+                            <button type="button" class="zone-dot" data-zone="red" style="background:#e53935;" title="Red"></button>
+                            <button type="button" class="zone-dot" data-zone="orange" style="background:#fb8c00;" title="Orange"></button>
+                            <button type="button" class="zone-dot active" data-zone="yellow" style="background:#fdd835;" title="Yellow"></button>
+                            <button type="button" class="zone-dot" data-zone="green" style="background:#43a047;" title="Green"></button>
+                            <button type="button" class="zone-dot" data-zone="aqua" style="background:#00acc1;" title="Aqua"></button>
+                            <button type="button" class="zone-dot" data-zone="blue" style="background:#1e88e5;" title="Blue"></button>
+                            <button type="button" class="zone-dot" data-zone="purple" style="background:#8e24aa;" title="Purple"></button>
+                            <button type="button" class="zone-dot" data-zone="magenta" style="background:#d81b60;" title="Magenta"></button>
+                        </div>
+
+                        <div id="selectedColorName">Yellow</div>
+
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Hue</span>
+                                <span class="slider-value" id="zoneHueValue">0</span>
+                            </div>
+                            <input type="range" id="zoneHue" min="-100" max="100" value="0" style="width: 100%;">
+                        </div>
+
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Saturation</span>
+                                <span class="slider-value" id="zoneSatValue">0</span>
+                            </div>
+                            <input type="range" id="zoneSat" min="-100" max="100" value="0" style="width: 100%;">
+                        </div>
+
+                        <div class="slider-group" style="margin-bottom: 0;">
+                            <div class="slider-label">
+                                <span>Luminance</span>
+                                <span class="slider-value" id="zoneLumValue">0</span>
+                            </div>
+                            <input type="range" id="zoneLum" min="-100" max="100" value="0" style="width: 100%;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Saturation</span>
+                        <span class="slider-value" id="saturationValue">0</span>
+                    </div>
+                    <input type="range" id="saturation" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Vibrance</span>
+                        <span class="slider-value" id="vibranceValue">0</span>
+                    </div>
+                    <input type="range" id="vibrance" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Hue</span>
+                        <span class="slider-value" id="hueValue">0</span>
+                    </div>
+                    <input type="range" id="hue" min="-180" max="180" value="0">
+                </div>
+            </div>
+
+            <!-- Detail Section -->
+            <div class="adjustment-section">
+                <h6>Detail</h6>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Clarity</span>
+                        <span class="slider-value" id="clarityValue">0</span>
+                    </div>
+                    <input type="range" id="clarity" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Sharpen</span>
+                        <span class="slider-value" id="sharpenValue">0</span>
+                    </div>
+                    <input type="range" id="sharpen" min="0" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Dehaze</span>
+                        <span class="slider-value" id="dehazeValue">0</span>
+                    </div>
+                    <input type="range" id="dehaze" min="-100" max="100" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Blur</span>
+                        <span class="slider-value" id="blurValue">0</span>
+                    </div>
+                    <input type="range" id="blur" min="0" max="50" value="0">
+                </div>
+            </div>
+
+            <!-- Effects Section -->
+            <div class="adjustment-section">
+                <h6>Effects</h6>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Gamma</span>
+                        <span class="slider-value" id="gammaValue">1.0</span>
+                    </div>
+                    <input type="range" id="gamma" min="0.5" max="2.5" step="0.1" value="1">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Rotate</span>
+                        <span class="slider-value" id="rotateValue">0°</span>
+                    </div>
+                    <input type="range" id="rotate" min="-180" max="180" value="0">
+                </div>
+
+                <div class="btn-group-vertical" style="margin-top: 0.8rem;">
+                    <button class="btn btn-outline-secondary btn-sm" id="flipHBtn" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">↔️ Flip H</button>
+                    <button class="btn btn-outline-secondary btn-sm" id="flipVBtn" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">↕️ Flip V</button>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="btn-group-vertical">
+                <button class="btn btn-outline-secondary" id="savePresetBtn" style="width: 100%; background-color: #2f2f2f; color: #dfe6ee; border: 1px solid #4a4a4a;">💾 Lưu cài đặt</button>
+                <button class="btn btn-warning" id="resetBtn" style="width: 100%;">↺ Reset</button>
+                <button class="btn btn-success" id="exportBtn" style="width: 100%;">💾 Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Preset Modal -->
+    <div class="modal fade" id="savePresetModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Lưu cài đặt preset</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="presetNameInput" class="form-label">Tên preset</label>
+                        <input type="text" class="form-control" id="presetNameInput" placeholder="Ví dụ: Sunset Boost">
+                    </div>
+
+                    <label class="form-label">Vị trí lưu</label>
+                    <div class="preset-location-row">
+                        <label><input type="radio" name="presetLocationMode" value="new" checked> Tạo mới trên web</label>
+                        <label><input type="radio" name="presetLocationMode" value="existing"> Chọn vị trí có sẵn</label>
+                    </div>
+
+                    <div class="mb-2" id="existingPresetWrap" style="display: none;">
+                        <label for="existingPresetSelect" class="form-label">Preset có sẵn</label>
+                        <select id="existingPresetSelect" class="form-select">
+                            <option value="">-- Chọn preset --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-success" id="confirmSavePresetBtn">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal fade" id="exportModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Export Image</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Format:</label>
+                        <div class="btn-group-vertical">
+                            <input type="radio" class="btn-check" name="format" id="formatJpeg" value="jpeg" checked>
+                            <label class="btn" for="formatJpeg" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); text-align: left;">JPEG</label>
+                            <input type="radio" class="btn-check" name="format" id="formatPng" value="png">
+                            <label class="btn" for="formatPng" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); text-align: left;">PNG</label>
+                            <input type="radio" class="btn-check" name="format" id="formatTiff" value="tiff">
+                            <label class="btn" for="formatTiff" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); text-align: left;">TIFF</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="qualitySlider" class="form-label">Quality: <span id="qualityValue">90</span>%</label>
+                        <input type="range" class="form-range" id="qualitySlider" min="50" max="100" value="90">
+                    </div>
+                    <div class="mb-3">
+                        <label for="exportName" class="form-label">File Name:</label>
+                        <input type="text" class="form-control" id="exportName" placeholder="exported-image">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="confirmExportBtn">Export</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE_URL = 'http://localhost:5000/api';
+        const AUTH_TOKEN_KEY = 'photoEditorAuthToken';
+        const COLOR_ZONE_KEYS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
+        const COLOR_ZONE_LABELS = {
+            red: 'Red',
+            orange: 'Orange',
+            yellow: 'Yellow',
+            green: 'Green',
+            aqua: 'Aqua',
+            blue: 'Blue',
+            purple: 'Purple',
+            magenta: 'Magenta'
+        };
+
+        function createEmptyColorZones() {
+            const zones = {};
+            COLOR_ZONE_KEYS.forEach((key) => {
+                zones[key] = { h: 0, s: 0, l: 0 };
+            });
+            return zones;
+        }
+
+        let currentImage = null;
+        let currentEdits = {
+            brightness: 0, contrast: 0, saturation: 0, hue: 0, sharpen: 0,
+            blur: 0, gamma: 1, rotate: 0, flipH: false, flipV: false,
+            highlights: 0, shadows: 0, whites: 0, blacks: 0, clarity: 0,
+            dehaze: 0, vibrance: 0,
+            temperature: 0, tint: 0,
+            colorMode: 'color',
+            colorZones: createEmptyColorZones(),
+            colorH: 0, colorS: 0, colorL: 0
+        };
+        let autoSaveTimeout;
+        let previewZoom = 1;
+        let selectedColorZone = 'yellow';
+        let previewPanX = 0;
+        let previewPanY = 0;
+        let isPanning = false;
+        let panStartX = 0;
+        let panStartY = 0;
+        let availablePresets = [];
+        let hoveredPresetId = null;
+        let appliedPresetId = null;
+        const ZOOM_MIN = 0.1;
+        const ZOOM_MAX = 8;
+        const ZOOM_STEP = 0.12;
+        const authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            currentImage = sessionStorage.getItem('currentEditImage');
+            if (!currentImage) {
+                alert('Không có ảnh để chỉnh sửa');
+                window.close();
+                return;
+            }
+            setupEventListeners();
+            setupZoomControls();
+            setupPanControls();
+            setupColorGradingControls();
+            loadImageInfo();
+            initHistogram();
+            updateZoomIndicator();
+            loadPresetOptions();
+            loadSavedEdits().then(() => updatePreview());
+            console.log('✓ Edit page loaded');
+        });
+
+        function getAuthHeaders(extra = {}) {
+            const headers = { ...extra };
+            if (authToken) {
+                headers.Authorization = `Bearer ${authToken}`;
+            }
+            return headers;
+        }
+
+        async function authFetch(url, options = {}) {
+            const headers = getAuthHeaders(options.headers || {});
+            return fetch(url, { ...options, headers });
+        }
+
+        function setupEventListeners() {
+            const sliders = ['brightness', 'contrast', 'saturation', 'hue', 'sharpen', 'blur', 'gamma', 'rotate', 'highlights', 'shadows', 'whites', 'blacks', 'clarity', 'dehaze', 'vibrance', 'temperature', 'tint', 'zoneHue', 'zoneSat', 'zoneLum'];
+            sliders.forEach(id => {
+                const elem = document.getElementById(id);
+                if (elem) elem.addEventListener('input', handleSliderChange);
+            });
+
+            document.getElementById('modeColorBtn').addEventListener('click', () => setColorMode('color'));
+            document.getElementById('modeBwBtn').addEventListener('click', () => setColorMode('bw'));
+            document.querySelectorAll('.zone-dot').forEach((dot) => {
+                dot.addEventListener('click', () => selectColorZone(dot.dataset.zone));
+            });
+
+            document.getElementById('flipHBtn').addEventListener('click', () => { currentEdits.flipH = !currentEdits.flipH; updatePreview(); });
+            document.getElementById('flipVBtn').addEventListener('click', () => { currentEdits.flipV = !currentEdits.flipV; updatePreview(); });
+            document.getElementById('savePresetBtn').addEventListener('click', openSavePresetModal);
+            document.getElementById('resetBtn').addEventListener('click', resetEdits);
+            document.getElementById('exportBtn').addEventListener('click', openExportModal);
+            document.getElementById('confirmSavePresetBtn').addEventListener('click', saveCurrentPreset);
+            document.getElementById('qualitySlider').addEventListener('input', (e) => {
+                document.getElementById('qualityValue').textContent = e.target.value;
+            });
+            document.getElementById('confirmExportBtn').addEventListener('click', performExport);
+
+            document.querySelectorAll('input[name="presetLocationMode"]').forEach((radio) => {
+                radio.addEventListener('change', togglePresetLocationMode);
+            });
+
+            document.querySelectorAll('input[type="range"]').forEach((slider) => {
+                slider.addEventListener('dblclick', () => resetSingleSlider(slider));
+            });
+        }
+
+        function getSliderDefaultValue(id) {
+            if (id === 'gamma') return 1;
+            return 0;
+        }
+
+        function resetSingleSlider(slider) {
+            const id = slider.id;
+            const resetValue = getSliderDefaultValue(id);
+
+            if (id === 'zoneHue' || id === 'zoneSat' || id === 'zoneLum') {
+                const zone = currentEdits.colorZones[selectedColorZone] || { h: 0, s: 0, l: 0 };
+                if (id === 'zoneHue') {
+                    zone.h = 0;
+                    document.getElementById('zoneHueValue').textContent = '0';
+                } else if (id === 'zoneSat') {
+                    zone.s = 0;
+                    document.getElementById('zoneSatValue').textContent = '0';
+                } else {
+                    zone.l = 0;
+                    document.getElementById('zoneLumValue').textContent = '0';
+                }
+                slider.value = '0';
+                currentEdits.colorZones[selectedColorZone] = zone;
+                updatePreview();
+                scheduleAutoSave();
+                return;
+            }
+
+            slider.value = String(resetValue);
+            currentEdits[id] = resetValue;
+
+            const valueElem = document.getElementById(`${id}Value`);
+            if (valueElem) {
+                if (id === 'rotate') valueElem.textContent = `${resetValue}°`;
+                else if (id === 'gamma') valueElem.textContent = Number(resetValue).toFixed(1);
+                else valueElem.textContent = String(resetValue);
+            }
+
+            updatePreview();
+            scheduleAutoSave();
+        }
+
+        // Progress Bar Functions
+        function showProgressBar(status = 'Processing...') {
+            const container = document.getElementById('progressBarContainer');
+            const label = document.getElementById('progressLabel');
+            container.style.display = 'flex';
+            label.textContent = status;
+        }
+
+        function updateProgress(percentage) {
+            const bar = document.getElementById('progressFillingBar');
+            const label = document.getElementById('progressLabel');
+            bar.style.width = percentage + '%';
+            label.textContent = Math.round(percentage) + '%';
+        }
+
+        function hideProgressBar() {
+            const container = document.getElementById('progressBarContainer');
+            container.style.display = 'none';
+        }
+
+        function handleSliderChange(e) {
+            const id = e.target.id;
+            const value = e.target.value;
+
+            if (id === 'zoneHue' || id === 'zoneSat' || id === 'zoneLum') {
+                const zone = currentEdits.colorZones[selectedColorZone] || { h: 0, s: 0, l: 0 };
+                const parsed = parseFloat(value);
+                if (id === 'zoneHue') {
+                    zone.h = parsed;
+                    document.getElementById('zoneHueValue').textContent = value;
+                } else if (id === 'zoneSat') {
+                    zone.s = parsed;
+                    document.getElementById('zoneSatValue').textContent = value;
+                } else {
+                    zone.l = parsed;
+                    document.getElementById('zoneLumValue').textContent = value;
+                }
+                currentEdits.colorZones[selectedColorZone] = zone;
+                updatePreview();
+                scheduleAutoSave();
+                return;
+            }
+
+            currentEdits[id] = isNaN(value) ? 0 : parseFloat(value);
+            const displayValue = id === 'rotate' ? `${value}°` : (id === 'gamma' ? parseFloat(value).toFixed(1) : value);
+            const valueElem = document.getElementById(`${id}Value`);
+            if (valueElem) valueElem.textContent = displayValue;
+            updatePreview();
+            scheduleAutoSave();
+        }
+
+        function setupColorGradingControls() {
+            if (!currentEdits.colorZones) {
+                currentEdits.colorZones = createEmptyColorZones();
+            }
+            if (!currentEdits.colorMode) {
+                currentEdits.colorMode = 'color';
+            }
+            setColorMode(currentEdits.colorMode, false);
+            selectColorZone(selectedColorZone, false);
+            syncZoneSliders();
+        }
+
+        function setColorMode(mode, triggerUpdate = true) {
+            currentEdits.colorMode = mode;
+            document.getElementById('modeColorBtn').classList.toggle('active', mode === 'color');
+            document.getElementById('modeBwBtn').classList.toggle('active', mode !== 'color');
+            document.getElementById('colorZoneControls').style.display = mode === 'color' ? 'block' : 'none';
+
+            if (triggerUpdate) {
+                updatePreview();
+                scheduleAutoSave();
+            }
+        }
+
+        function selectColorZone(zone, triggerUpdate = false) {
+            if (!COLOR_ZONE_KEYS.includes(zone)) return;
+            selectedColorZone = zone;
+            document.querySelectorAll('.zone-dot').forEach((dot) => {
+                dot.classList.toggle('active', dot.dataset.zone === zone);
+            });
+            document.getElementById('selectedColorName').textContent = COLOR_ZONE_LABELS[zone] || zone;
+            syncZoneSliders();
+
+            if (triggerUpdate) {
+                updatePreview();
+            }
+        }
+
+        function syncZoneSliders() {
+            if (!currentEdits.colorZones[selectedColorZone]) {
+                currentEdits.colorZones[selectedColorZone] = { h: 0, s: 0, l: 0 };
+            }
+            const zone = currentEdits.colorZones[selectedColorZone];
+            document.getElementById('zoneHue').value = zone.h;
+            document.getElementById('zoneSat').value = zone.s;
+            document.getElementById('zoneLum').value = zone.l;
+            document.getElementById('zoneHueValue').textContent = zone.h;
+            document.getElementById('zoneSatValue').textContent = zone.s;
+            document.getElementById('zoneLumValue').textContent = zone.l;
+        }
+
+        async function updatePreview(editsOverride = null) {
+            try {
+                console.log(`🎬 updatePreview: requesting for ${currentImage}`);
+                
+                // Show progress bar for RAW files
+                const isRaw = /\.(arw|nef|cr2|cr3|dng|raf|orf|rw2|srw|x3f)$/i.test(currentImage);
+                if (isRaw) {
+                    showProgressBar('Xử lý RAW...');
+                }
+                
+                const response = await authFetch(`${API_BASE_URL}/image/preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentImage, edits: editsOverride || currentEdits })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const previewUrl = `${data.previewPath}?t=${Date.now()}`;
+                console.log(`✓ Preview URL: ${previewUrl}`);
+                
+                const previewImg = document.getElementById('editPreview');
+                previewImg.onerror = () => {
+                    console.error(`❌ Failed to load preview: ${previewUrl}`);
+                    hideProgressBar();
+                };
+                previewImg.onload = () => {
+                    console.log(`✓ Preview loaded successfully`);
+                    hideProgressBar();
+                    updatePanCursor();
+                    updateHistogram();
+                };
+                previewImg.src = previewUrl;
+                
+            } catch (error) {
+                console.error('❌ Lỗi preview:', error);
+            }
+        }
+
+        async function updateHistogram() {
+            try {
+                const response = await authFetch(`${API_BASE_URL}/image/histogram`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentImage, edits: currentEdits })
+                });
+                const data = await response.json();
+                if (data.histogram && Array.isArray(data.histogram)) {
+                    const canvas = document.getElementById('histogram');
+                    const ctx = canvas.getContext('2d');
+                    drawHistogram(ctx, data.histogram);
+                }
+            } catch (error) {
+                console.log('⚠️ Histogram unavailable:', error.message);
+            }
+        }
+
+        function scheduleAutoSave() {
+            clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(autoSave, 2000);
+        }
+
+        async function autoSave() {
+            try {
+                await authFetch(`${API_BASE_URL}/image/save-edit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentImage, edits: currentEdits })
+                });
+            } catch (error) {
+                console.error('Lỗi auto-save:', error);
+            }
+        }
+
+        async function loadImageInfo() {
+            try {
+                const response = await authFetch(`${API_BASE_URL}/image/metadata/${currentImage}`);
+                const data = await response.json();
+                sessionStorage.setItem('imageWidth', data.width);
+                sessionStorage.setItem('imageHeight', data.height);
+            } catch (error) {
+                console.error('Lỗi:', error);
+            }
+        }
+
+        function applyEditsToUi() {
+            ['brightness', 'contrast', 'saturation', 'hue', 'sharpen', 'blur', 'rotate', 'highlights', 'shadows', 'whites', 'blacks', 'clarity', 'dehaze', 'vibrance', 'temperature', 'tint'].forEach((id) => {
+                const elem = document.getElementById(id);
+                if (!elem) return;
+                const value = currentEdits[id] ?? getSliderDefaultValue(id);
+                elem.value = value;
+                const valueElem = document.getElementById(`${id}Value`);
+                if (valueElem) {
+                    if (id === 'rotate') valueElem.textContent = `${value}°`;
+                    else if (id === 'gamma') valueElem.textContent = Number(value).toFixed(1);
+                    else valueElem.textContent = value;
+                }
+            });
+
+            document.getElementById('gamma').value = currentEdits.gamma ?? 1;
+            document.getElementById('gammaValue').textContent = Number(currentEdits.gamma ?? 1).toFixed(1);
+            setColorMode(currentEdits.colorMode || 'color', false);
+            selectColorZone(selectedColorZone, false);
+            syncZoneSliders();
+        }
+
+        async function loadSavedEdits() {
+            try {
+                const response = await authFetch(`${API_BASE_URL}/image/edit/${currentImage}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                const saved = data.edits || {};
+
+                if (Object.keys(saved).length === 0) return;
+
+                currentEdits = {
+                    ...currentEdits,
+                    ...saved,
+                    colorZones: {
+                        ...createEmptyColorZones(),
+                        ...(saved.colorZones || currentEdits.colorZones || {})
+                    }
+                };
+                applyEditsToUi();
+            } catch (error) {
+                console.warn('Không tải được chỉnh sửa đã lưu:', error.message);
+            }
+        }
+
+        function initHistogram() {
+            const canvas = document.getElementById('histogram');
+            const ctx = canvas.getContext('2d');
+            drawHistogram(ctx, new Array(256).fill(50));
+        }
+
+        function drawHistogram(ctx, data) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, width, height);
+
+            const binWidth = width / 256;
+            const maxValue = Math.max(...data) || 100;
+
+            // Draw histogram bars
+            ctx.fillStyle = '#666';
+            for (let i = 0; i < 256; i++) {
+                const barHeight = (data[i] / maxValue) * height;
+                ctx.fillRect(i * binWidth, height - barHeight, binWidth, barHeight);
+            }
+
+            // Draw grid
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const x = (width / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+        }
+
+        function resetEdits() {
+            if (!confirm('Reset all edits?')) return;
+            currentEdits = {
+                brightness: 0, contrast: 0, saturation: 0, hue: 0, sharpen: 0,
+                blur: 0, gamma: 1, rotate: 0, flipH: false, flipV: false,
+                highlights: 0, shadows: 0, whites: 0, blacks: 0, clarity: 0,
+                dehaze: 0, vibrance: 0,
+                temperature: 0, tint: 0,
+                colorMode: 'color',
+                colorZones: createEmptyColorZones(),
+                colorH: 0, colorS: 0, colorL: 0
+            };
+            ['brightness', 'contrast', 'saturation', 'hue', 'sharpen', 'blur', 'rotate', 'highlights', 'shadows', 'whites', 'blacks', 'clarity', 'dehaze', 'vibrance', 'temperature', 'tint'].forEach(id => {
+                const elem = document.getElementById(id);
+                if (elem) {
+                    elem.value = currentEdits[id];
+                    const valueElem = document.getElementById(`${id}Value`);
+                    if (valueElem) valueElem.textContent = elem.value;
+                }
+            });
+            document.getElementById('gamma').value = 1;
+            document.getElementById('gammaValue').textContent = '1.0';
+            setColorMode('color', false);
+            selectColorZone('yellow', false);
+            syncZoneSliders();
+            previewZoom = 1;
+            applyPreviewZoom();
+            updatePreview();
+        }
+
+        function setupZoomControls() {
+            const previewCenter = document.querySelector('.preview-center');
+            previewCenter.addEventListener('wheel', (event) => {
+                if (!event.ctrlKey) return;
+                event.preventDefault();
+
+                const direction = event.deltaY < 0 ? 1 : -1;
+                const factor = 1 + (ZOOM_STEP * direction);
+                previewZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, previewZoom * factor));
+                applyPreviewZoom();
+            }, { passive: false });
+        }
+
+        function setupPanControls() {
+            const previewCenter = document.querySelector('.preview-center');
+
+            previewCenter.addEventListener('mousedown', (event) => {
+                if (event.button !== 0 || previewZoom <= 1) return;
+                isPanning = true;
+                panStartX = event.clientX - previewPanX;
+                panStartY = event.clientY - previewPanY;
+                previewCenter.classList.add('grabbing');
+            });
+
+            window.addEventListener('mousemove', (event) => {
+                if (!isPanning) return;
+                previewPanX = event.clientX - panStartX;
+                previewPanY = event.clientY - panStartY;
+                applyPreviewZoom();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!isPanning) return;
+                isPanning = false;
+                previewCenter.classList.remove('grabbing');
+                updatePanCursor();
+            });
+        }
+
+        function applyPreviewZoom() {
+            const stage = document.getElementById('previewStage');
+            if (previewZoom <= 1) {
+                previewPanX = 0;
+                previewPanY = 0;
+            }
+            stage.style.transform = `translate(${previewPanX}px, ${previewPanY}px) scale(${previewZoom.toFixed(3)})`;
+            updateZoomIndicator();
+            updatePanCursor();
+        }
+
+        function updateZoomIndicator() {
+            const indicator = document.getElementById('zoomIndicator');
+            indicator.textContent = `${Math.round(previewZoom * 100)}%`;
+        }
+
+        function updatePanCursor() {
+            const previewCenter = document.querySelector('.preview-center');
+            previewCenter.classList.remove('grab');
+            if (previewZoom > 1 && !isPanning) {
+                previewCenter.classList.add('grab');
+            }
+        }
+
+        async function loadPresetOptions() {
+            try {
+                const response = await authFetch(`${API_BASE_URL}/image/presets`);
+                const presets = await response.json();
+                availablePresets = Array.isArray(presets) ? presets : [];
+            } catch (error) {
+                console.warn('Không tải được presets:', error.message);
+                availablePresets = [];
+            }
+
+            const select = document.getElementById('existingPresetSelect');
+            select.innerHTML = '<option value="">-- Chọn preset --</option>';
+            availablePresets.forEach((preset) => {
+                const option = document.createElement('option');
+                option.value = preset.id;
+                option.textContent = preset.name || preset.id;
+                select.appendChild(option);
+            });
+
+            renderPresetList();
+        }
+
+        function renderPresetList() {
+            const list = document.getElementById('presetsList');
+            if (!availablePresets.length) {
+                list.innerHTML = '<p class="text-muted small">Không có presets</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            availablePresets.forEach((preset) => {
+                const item = document.createElement('div');
+                item.className = 'preset-item';
+                item.textContent = preset.name || 'Untitled preset';
+                item.dataset.id = preset.id;
+
+                if (preset.id === appliedPresetId) {
+                    item.classList.add('active');
+                }
+
+                item.addEventListener('mouseenter', async () => {
+                    hoveredPresetId = preset.id;
+                    await updatePreview(preset.settings || {});
+                });
+
+                item.addEventListener('mouseleave', async () => {
+                    if (hoveredPresetId !== preset.id) return;
+                    hoveredPresetId = null;
+                    await updatePreview();
+                });
+
+                item.addEventListener('click', () => {
+                    applyPresetToCurrent(preset);
+                });
+
+                list.appendChild(item);
+            });
+        }
+
+        function normalizePresetEdits(settings = {}) {
+            return {
+                ...currentEdits,
+                ...JSON.parse(JSON.stringify(settings || {})),
+                colorZones: {
+                    ...createEmptyColorZones(),
+                    ...(settings?.colorZones || {})
+                }
+            };
+        }
+
+        function applyPresetToCurrent(preset) {
+            currentEdits = normalizePresetEdits(preset.settings || {});
+            appliedPresetId = preset.id;
+            applyEditsToUi();
+            renderPresetList();
+            updatePreview();
+            scheduleAutoSave();
+        }
+
+        function togglePresetLocationMode() {
+            const mode = document.querySelector('input[name="presetLocationMode"]:checked')?.value || 'new';
+            const wrap = document.getElementById('existingPresetWrap');
+            wrap.style.display = mode === 'existing' ? 'block' : 'none';
+        }
+
+        async function openSavePresetModal() {
+            await loadPresetOptions();
+            document.getElementById('presetNameInput').value = '';
+            document.querySelector('input[name="presetLocationMode"][value="new"]').checked = true;
+            document.getElementById('existingPresetSelect').value = '';
+            togglePresetLocationMode();
+            const modal = new bootstrap.Modal(document.getElementById('savePresetModal'));
+            modal.show();
+        }
+
+        async function saveCurrentPreset() {
+            try {
+                const mode = document.querySelector('input[name="presetLocationMode"]:checked')?.value || 'new';
+                const presetName = document.getElementById('presetNameInput').value.trim();
+                const selectedPresetId = document.getElementById('existingPresetSelect').value;
+
+                if (mode === 'new' && !presetName) {
+                    alert('Vui lòng nhập tên preset.');
+                    return;
+                }
+
+                if (mode === 'existing' && !selectedPresetId) {
+                    alert('Vui lòng chọn vị trí preset có sẵn.');
+                    return;
+                }
+
+                const existingPreset = availablePresets.find((p) => p.id === selectedPresetId);
+                const finalName = mode === 'existing'
+                    ? (presetName || existingPreset?.name || 'Updated Preset')
+                    : presetName;
+
+                const payload = {
+                    name: finalName,
+                    settings: currentEdits,
+                    presetId: mode === 'existing' ? selectedPresetId : null
+                };
+
+                const response = await authFetch(`${API_BASE_URL}/image/preset/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || 'Không lưu được preset');
+                }
+
+                bootstrap.Modal.getInstance(document.getElementById('savePresetModal')).hide();
+                await loadPresetOptions();
+                const saved = await response.json().catch(() => ({}));
+                if (saved?.preset?.id) {
+                    appliedPresetId = saved.preset.id;
+                    renderPresetList();
+                }
+                alert('✓ Đã lưu cài đặt preset thành công!');
+            } catch (error) {
+                alert(`✗ Lỗi lưu preset: ${error.message}`);
+            }
+        }
+
+        function openExportModal() {
+            const modal = new bootstrap.Modal(document.getElementById('exportModal'));
+            modal.show();
+        }
+
+        async function performExport() {
+            const format = document.querySelector('input[name="format"]:checked').value;
+            const quality = document.getElementById('qualitySlider').value;
+            const filename = document.getElementById('exportName').value.trim() || 'exported-image';
+
+            try {
+                const response = await authFetch(`${API_BASE_URL}/image/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentImage, format, quality, ppi: 300 })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const link = document.createElement('a');
+                    link.href = data.exportPath;
+                    link.download = `${filename}.${format}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+                    alert('✓ Export successful!');
+                }
+            } catch (error) {
+                alert('✗ Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
