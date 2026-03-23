@@ -686,22 +686,22 @@ Questions? Check: https://imagemagick.org/script/index.php
       const shadowVal = Number(shadows) / 100;
       if (shadowVal > 0) {
         const w = Math.pow(Math.max(0, (0.55 - lum) / 0.55), 1.4);
-        const lift = shadowVal * 0.68 * w;
+        const lift = shadowVal * 0.6 * w;
         mappedLum = mappedLum + (1 - mappedLum) * lift;
       } else if (shadowVal < 0) {
         const w = Math.pow(Math.max(0, (0.55 - lum) / 0.55), 1.25);
-        const darken = (-shadowVal) * 0.5 * w;
+        const darken = (-shadowVal) * 0.44 * w;
         mappedLum = mappedLum * (1 - darken);
       }
 
       const highlightVal = Number(highlights) / 100;
       if (highlightVal > 0) {
         const w = Math.pow(Math.max(0, (lum - 0.42) / 0.58), 1.45);
-        const compress = highlightVal * 1.15 * w;
+        const compress = highlightVal * 1.0 * w;
         mappedLum = 1 - ((1 - mappedLum) / (1 + compress));
       } else if (highlightVal < 0) {
         const w = Math.pow(Math.max(0, (lum - 0.42) / 0.58), 1.25);
-        const boost = (-highlightVal) * 0.42 * w;
+        const boost = (-highlightVal) * 0.36 * w;
         mappedLum = mappedLum + (1 - mappedLum) * boost;
       }
 
@@ -753,15 +753,15 @@ Questions? Check: https://imagemagick.org/script/index.php
       const warm = temperature / 100;
       const tintShift = tint / 100;
       image = image.recomb([
-        [1 + warm * 0.18 + tintShift * 0.03, 0, 0],
-        [0, 1 - Math.abs(warm) * 0.02 + tintShift * 0.06, 0],
-        [0, 0, 1 - warm * 0.18 - tintShift * 0.03]
+        [1 + warm * 0.15 + tintShift * 0.025, 0, 0],
+        [0, 1 - Math.abs(warm) * 0.018 + tintShift * 0.05, 0],
+        [0, 0, 1 - warm * 0.15 - tintShift * 0.025]
       ]);
     }
 
-    const brightnessScale = 1 + (brightness / 115) + (colorL / 220) + (whites / 300) - (blacks / 340);
-    const saturationScale = Math.max(0, 1 + (saturation / 105) + (vibrance / 145) + (colorS / 175));
-    const hueShift = Math.round(hue + colorH + (temperature * 0.05) + (tint * 0.08));
+    const brightnessScale = 1 + (brightness / 130) + (colorL / 250) + (whites / 340) - (blacks / 380);
+    const saturationScale = Math.max(0, 1 + (saturation / 120) + (vibrance / 165) + (colorS / 195));
+    const hueShift = Math.round(hue + colorH + (temperature * 0.04) + (tint * 0.065));
 
     if (brightnessScale !== 1 || saturationScale !== 1 || hueShift !== 0) {
       image = image.modulate({
@@ -772,8 +772,8 @@ Questions? Check: https://imagemagick.org/script/index.php
     }
 
     if (contrast || clarity || dehaze || whites || blacks) {
-      const contrastFactor = 1 + (contrast / 90) + (clarity / 320) + (dehaze / 280);
-      const offset = 128 * (1 - contrastFactor) + (whites * 0.2) + (blacks * -0.2);
+      const contrastFactor = 1 + (contrast / 105) + (clarity / 360) + (dehaze / 320);
+      const offset = 128 * (1 - contrastFactor) + (whites * 0.17) + (blacks * -0.17);
       image = image.linear(contrastFactor, offset);
     }
 
@@ -782,12 +782,12 @@ Questions? Check: https://imagemagick.org/script/index.php
     }
 
     if (blur > 0) {
-      image = image.blur(Math.max(0.3, blur / 15));
+      image = image.blur(Math.max(0.3, blur / 17));
     }
 
     if (sharpen > 0 || clarity > 0) {
-      const sigma = Math.max(0.3, sharpen / 25 + clarity / 90);
-      const m1 = 1 + (sharpen / 110) + (clarity / 220);
+      const sigma = Math.max(0.3, sharpen / 28 + clarity / 105);
+      const m1 = 1 + (sharpen / 125) + (clarity / 245);
       image = image.sharpen({ sigma, m1 });
     }
 
