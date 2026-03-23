@@ -21,32 +21,44 @@
             --success-color: #4a9e6f;
         }
 
-        html, body { 
-            height: 100%; 
+        html, body {
+            height: 100%;
             background-color: var(--bg-primary);
             color: var(--text-primary);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             overflow: hidden;
         }
 
-        .navbar { 
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
             background-color: var(--bg-secondary) !important;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
             padding: 0.75rem 1.5rem;
             border-bottom: 1px solid var(--border-color);
-            height: 60px;
+            min-height: 60px;
             display: flex;
             align-items: center;
         }
 
-        .navbar-brand { 
+        .navbar .container-fluid {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            row-gap: 0.35rem;
+        }
+
+        .navbar-brand {
             font-size: 1.2rem;
             font-weight: 600;
             letter-spacing: 0.5px;
             color: var(--text-primary) !important;
         }
 
-        .navbar-text { 
+        .navbar-text {
             color: var(--text-secondary) !important;
             font-size: 0.85rem;
         }
@@ -84,6 +96,9 @@
             align-items: center;
             gap: 8px;
             z-index: 1000;
+            position: static;
+            flex-basis: 100%;
+            margin-top: 0.1rem;
         }
 
         .progress-bar-bg {
@@ -115,7 +130,7 @@
         .sidebar { 
             overflow-y: auto;
             overflow-x: hidden;
-            height: calc(100vh - 60px);
+            height: 100%;
             background-color: var(--bg-secondary) !important;
             color: var(--text-primary) !important;
             border-right: 1px solid var(--border-color);
@@ -450,7 +465,7 @@
             </div>
             <span id="previewWindowLabel" class="navbar-text text-secondary">Cửa sổ xem trước</span>
             <!-- Progress Bar -->
-            <div id="progressBarContainer" class="progress-bar-container" style="display: none; position: absolute; left: 20px; top: 12px;">
+            <div id="progressBarContainer" class="progress-bar-container" style="display: none;">
                 <div class="progress-bar-bg" style="width: 200px;">
                     <div id="progressFillingBar" class="progress-bar-fill"></div>
                 </div>
@@ -459,7 +474,7 @@
         </div>
     </nav>
 
-    <div class="row" style="margin: 0; height: calc(100vh - 60px);">
+    <div class="row" style="margin: 0; flex: 1; min-height: 0;">
         <!-- Left Panel -->
         <div class="col-md-3 bg-light sidebar p-3">
             <h5 id="uploadTitle" class="mb-3">Tải ảnh lên</h5>
