@@ -31,9 +31,25 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
             padding: 0.75rem 1.5rem;
             border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         .navbar-brand { font-size: 1.2rem; font-weight: 600; color: var(--text-primary) !important; }
+
+        .top-nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+
+        .top-nav-actions .btn {
+            text-transform: none;
+            letter-spacing: 0;
+            padding: 0.32rem 0.62rem;
+            font-size: 0.8rem;
+        }
 
         /* Progress Bar for RAW Processing */
         .progress-bar-container {
@@ -412,6 +428,14 @@
 <body>
     <nav class="navbar navbar-dark">
         <span class="navbar-brand">📸 Photo Editor</span>
+        <div class="top-nav-actions">
+            <button id="goPreviewBtn" class="btn btn-outline-info">Xem trước</button>
+            <button id="editModeBtn" class="btn btn-success" disabled>Chỉnh sửa</button>
+            <select id="languageSelectEdit" class="form-select form-select-sm" style="width: 110px; margin-left: 0.45rem;">
+                <option value="vi">Tieng Viet</option>
+                <option value="en">English</option>
+            </select>
+        </div>
         <!-- Progress Bar for RAW Processing -->
         <div id="progressBarContainer" class="progress-bar-container" style="display: none;">
             <div class="progress-bar-bg">
@@ -424,12 +448,12 @@
     <div class="container-fluid">
         <!-- Left Sidebar: Presets/Navigator -->
         <div class="sidebar sidebar-left">
-            <h5>Navigator</h5>
+            <h5 id="navTitle">Điều hướng</h5>
             <div id="navigatorPreview" style="width: 100%; height: 150px; background-color: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: center;">
-                <span class="text-muted" style="font-size: 0.85rem;">Preview</span>
+                <span id="navigatorPreviewText" class="text-muted" style="font-size: 0.85rem;">Xem trước</span>
             </div>
 
-            <h6>Presets</h6>
+            <h6 id="presetTitle">Mẫu chỉnh</h6>
             <div id="presetsList" style="max-height: 300px; overflow-y: auto;">
                 <p class="text-muted small">Không có presets</p>
             </div>
@@ -439,7 +463,7 @@
         <div class="preview-center">
             <div id="zoomIndicator" class="zoom-indicator">100%</div>
             <div id="previewStage" class="preview-stage">
-                <img id="editPreview" src="" alt="Preview">
+                <img id="editPreview" src="" alt="Ảnh chỉnh sửa">
             </div>
         </div>
 
@@ -447,17 +471,17 @@
         <div class="sidebar sidebar-right">
             <!-- Histogram -->
             <div class="histogram-panel">
-                <div class="histogram-label">Histogram</div>
+                <div id="histogramTitle" class="histogram-label">Histogram</div>
                 <canvas id="histogram" width="280" height="60" style="border-radius: 2px;"></canvas>
             </div>
 
             <!-- White Balance Section -->
             <div class="adjustment-section">
-                <h6>White Balance</h6>
+                <h6 id="whiteBalanceTitle">White Balance</h6>
                 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Temperature</span>
+                        <span id="temperatureLabel">Temperature</span>
                         <span class="slider-value" id="temperatureValue">0</span>
                     </div>
                     <input type="range" id="temperature" min="-100" max="100" value="0">
@@ -466,7 +490,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Tint</span>
+                        <span id="tintLabel">Tint</span>
                         <span class="slider-value" id="tintValue">0</span>
                     </div>
                     <input type="range" id="tint" min="-100" max="100" value="0">
@@ -476,11 +500,11 @@
 
             <!-- Light Section -->
             <div class="adjustment-section">
-                <h6>Light</h6>
+                <h6 id="lightTitle">Light</h6>
                 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Exposure</span>
+                        <span id="exposureLabel">Exposure</span>
                         <span class="slider-value" id="brightnessValue">0</span>
                     </div>
                     <input type="range" id="brightness" min="-100" max="100" value="0">
@@ -488,7 +512,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Contrast</span>
+                        <span id="contrastLabel">Contrast</span>
                         <span class="slider-value" id="contrastValue">0</span>
                     </div>
                     <input type="range" id="contrast" min="-100" max="100" value="0">
@@ -496,7 +520,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Highlights</span>
+                        <span id="highlightsLabel">Highlights</span>
                         <span class="slider-value" id="highlightsValue">0</span>
                     </div>
                     <input type="range" id="highlights" min="-100" max="100" value="0">
@@ -504,7 +528,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Shadows</span>
+                        <span id="shadowsLabel">Shadows</span>
                         <span class="slider-value" id="shadowsValue">0</span>
                     </div>
                     <input type="range" id="shadows" min="-100" max="100" value="0">
@@ -512,7 +536,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Whites</span>
+                        <span id="whitesLabel">Whites</span>
                         <span class="slider-value" id="whitesValue">0</span>
                     </div>
                     <input type="range" id="whites" min="-100" max="100" value="0">
@@ -520,7 +544,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Blacks</span>
+                        <span id="blacksLabel">Blacks</span>
                         <span class="slider-value" id="blacksValue">0</span>
                     </div>
                     <input type="range" id="blacks" min="-100" max="100" value="0">
@@ -529,7 +553,7 @@
 
             <!-- Color Grading Section -->
             <div class="adjustment-section">
-                <h6>Color Grading</h6>
+                <h6 id="colorGradingTitle">Color Grading</h6>
                 <div style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; padding: 0.6rem; margin-bottom: 1rem;">
                     <div class="color-mode-toggle">
                         <button type="button" id="modeColorBtn" class="mode-text-btn active">Color</button>
@@ -552,7 +576,7 @@
 
                         <div class="slider-group">
                             <div class="slider-label">
-                                <span>Hue</span>
+                                <span id="zoneHueLabel">Hue</span>
                                 <span class="slider-value" id="zoneHueValue">0</span>
                             </div>
                             <input type="range" id="zoneHue" min="-100" max="100" value="0" style="width: 100%;">
@@ -560,7 +584,7 @@
 
                         <div class="slider-group">
                             <div class="slider-label">
-                                <span>Saturation</span>
+                                <span id="zoneSatLabel">Saturation</span>
                                 <span class="slider-value" id="zoneSatValue">0</span>
                             </div>
                             <input type="range" id="zoneSat" min="-100" max="100" value="0" style="width: 100%;">
@@ -568,7 +592,7 @@
 
                         <div class="slider-group" style="margin-bottom: 0;">
                             <div class="slider-label">
-                                <span>Luminance</span>
+                                <span id="zoneLumLabel">Luminance</span>
                                 <span class="slider-value" id="zoneLumValue">0</span>
                             </div>
                             <input type="range" id="zoneLum" min="-100" max="100" value="0" style="width: 100%;">
@@ -578,7 +602,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Saturation</span>
+                        <span id="saturationLabel">Saturation</span>
                         <span class="slider-value" id="saturationValue">0</span>
                     </div>
                     <input type="range" id="saturation" min="-100" max="100" value="0">
@@ -586,7 +610,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Vibrance</span>
+                        <span id="vibranceLabel">Vibrance</span>
                         <span class="slider-value" id="vibranceValue">0</span>
                     </div>
                     <input type="range" id="vibrance" min="-100" max="100" value="0">
@@ -594,7 +618,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Hue</span>
+                        <span id="hueLabel">Hue</span>
                         <span class="slider-value" id="hueValue">0</span>
                     </div>
                     <input type="range" id="hue" min="-180" max="180" value="0">
@@ -603,11 +627,11 @@
 
             <!-- Detail Section -->
             <div class="adjustment-section">
-                <h6>Detail</h6>
+                <h6 id="detailTitle">Detail</h6>
                 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Clarity</span>
+                        <span id="clarityLabel">Clarity</span>
                         <span class="slider-value" id="clarityValue">0</span>
                     </div>
                     <input type="range" id="clarity" min="-100" max="100" value="0">
@@ -615,7 +639,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Sharpen</span>
+                        <span id="sharpenLabel">Sharpen</span>
                         <span class="slider-value" id="sharpenValue">0</span>
                     </div>
                     <input type="range" id="sharpen" min="0" max="100" value="0">
@@ -623,7 +647,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Dehaze</span>
+                        <span id="dehazeLabel">Dehaze</span>
                         <span class="slider-value" id="dehazeValue">0</span>
                     </div>
                     <input type="range" id="dehaze" min="-100" max="100" value="0">
@@ -631,7 +655,7 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Blur</span>
+                        <span id="blurLabel">Blur</span>
                         <span class="slider-value" id="blurValue">0</span>
                     </div>
                     <input type="range" id="blur" min="0" max="50" value="0">
@@ -640,11 +664,11 @@
 
             <!-- Effects Section -->
             <div class="adjustment-section">
-                <h6>Effects</h6>
+                <h6 id="effectsTitle">Effects</h6>
                 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Gamma</span>
+                        <span id="gammaLabel">Gamma</span>
                         <span class="slider-value" id="gammaValue">1.0</span>
                     </div>
                     <input type="range" id="gamma" min="0.5" max="2.5" step="0.1" value="1">
@@ -652,15 +676,15 @@
 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Rotate</span>
+                        <span id="rotateLabel">Rotate</span>
                         <span class="slider-value" id="rotateValue">0°</span>
                     </div>
                     <input type="range" id="rotate" min="-180" max="180" value="0">
                 </div>
 
                 <div class="btn-group-vertical" style="margin-top: 0.8rem;">
-                    <button class="btn btn-outline-secondary btn-sm" id="flipHBtn" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">↔️ Flip H</button>
-                    <button class="btn btn-outline-secondary btn-sm" id="flipVBtn" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">↕️ Flip V</button>
+                    <button class="btn btn-outline-secondary btn-sm" id="flipHBtn" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">↔️ Lật ngang</button>
+                    <button class="btn btn-outline-secondary btn-sm" id="flipVBtn" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">↕️ Lật dọc</button>
                 </div>
             </div>
 
@@ -668,8 +692,8 @@
 
             <div class="btn-group-vertical">
                 <button class="btn btn-outline-secondary" id="savePresetBtn" style="width: 100%; background-color: #2f2f2f; color: #dfe6ee; border: 1px solid #4a4a4a;">💾 Lưu cài đặt</button>
-                <button class="btn btn-warning" id="resetBtn" style="width: 100%;">↺ Reset</button>
-                <button class="btn btn-success" id="exportBtn" style="width: 100%;">💾 Export</button>
+                <button class="btn btn-warning" id="resetBtn" style="width: 100%;">↺ Đặt lại</button>
+                <button class="btn btn-success" id="exportBtn" style="width: 100%;">💾 Xuất ảnh</button>
             </div>
         </div>
     </div>
@@ -714,12 +738,12 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Export Image</h5>
+                    <h5 id="exportModalTitle" class="modal-title">Xuất ảnh</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Format:</label>
+                        <label id="exportFormatLabel" class="form-label">Định dạng:</label>
                         <div class="btn-group-vertical">
                             <input type="radio" class="btn-check" name="format" id="formatJpeg" value="jpeg" checked>
                             <label class="btn" for="formatJpeg" style="background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); text-align: left;">JPEG</label>
@@ -730,17 +754,17 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="qualitySlider" class="form-label">Quality: <span id="qualityValue">90</span>%</label>
+                        <label id="qualitySliderLabel" for="qualitySlider" class="form-label">Chất lượng: <span id="qualityValue">90</span>%</label>
                         <input type="range" class="form-range" id="qualitySlider" min="50" max="100" value="90">
                     </div>
                     <div class="mb-3">
-                        <label for="exportName" class="form-label">File Name:</label>
-                        <input type="text" class="form-control" id="exportName" placeholder="exported-image">
+                        <label id="exportNameLabel" for="exportName" class="form-label">Tên file:</label>
+                        <input type="text" class="form-control" id="exportName" placeholder="anh-da-xuat">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-success" id="confirmExportBtn">Export</button>
+                    <button id="cancelExportBtn" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-success" id="confirmExportBtn">Xuất ảnh</button>
                 </div>
             </div>
         </div>
@@ -750,16 +774,121 @@
     <script>
         const API_BASE_URL = 'http://localhost:5000/api';
         const AUTH_TOKEN_KEY = 'photoEditorAuthToken';
+        const LANG_KEY = 'photoEditorLanguage';
+        const I18N = {
+            vi: {
+                title: 'Photo Editor - Chinh sua',
+                preview: 'Xem trước',
+                edit: 'Chỉnh sửa',
+                navigator: 'Điều hướng',
+                presets: 'Mẫu chỉnh',
+                noPresets: 'Không có presets',
+                histogram: 'Histogram',
+                whiteBalance: 'Can bằng trắng',
+                light: 'Ánh sáng',
+                colorGrading: 'Phối màu',
+                detail: 'Chi tiết',
+                effects: 'Hiệu ứng',
+                temperature: 'Nhiệt độ',
+                tint: 'Ám màu',
+                exposure: 'Phơi sáng',
+                contrast: 'Tương phản',
+                highlights: 'Vùng sáng',
+                shadows: 'Vùng tối',
+                whites: 'Whites',
+                blacks: 'Blacks',
+                hue: 'Hue',
+                saturation: 'Saturation',
+                vibrance: 'Vibrance',
+                luminance: 'Luminance',
+                clarity: 'Clarity',
+                sharpen: 'Độ nét',
+                dehaze: 'Khử mờ',
+                blur: 'Làm mờ',
+                gamma: 'Gamma',
+                rotate: 'Xoay',
+                flipH: '↔️ Lật ngang',
+                flipV: '↕️ Lật dọc',
+                reset: '↺ Đặt lại',
+                export: '💾 Xuất ảnh',
+                exportTitle: 'Xuất ảnh',
+                exportFormat: 'Định dạng:',
+                quality: 'Chất lượng',
+                fileName: 'Tên file:',
+                cancel: 'Hủy',
+                exportBtn: 'Xuất ảnh',
+                noImageToEdit: 'Không có ảnh để chỉnh sửa',
+                colorMode: 'Color',
+                bwMode: 'B&W'
+            },
+            en: {
+                title: 'Photo Editor - Edit',
+                preview: 'Preview',
+                edit: 'Edit',
+                navigator: 'Navigator',
+                presets: 'Presets',
+                noPresets: 'No presets',
+                histogram: 'Histogram',
+                whiteBalance: 'White Balance',
+                light: 'Light',
+                colorGrading: 'Color Grading',
+                detail: 'Detail',
+                effects: 'Effects',
+                temperature: 'Temperature',
+                tint: 'Tint',
+                exposure: 'Exposure',
+                contrast: 'Contrast',
+                highlights: 'Highlights',
+                shadows: 'Shadows',
+                whites: 'Whites',
+                blacks: 'Blacks',
+                hue: 'Hue',
+                saturation: 'Saturation',
+                vibrance: 'Vibrance',
+                luminance: 'Luminance',
+                clarity: 'Clarity',
+                sharpen: 'Sharpen',
+                dehaze: 'Dehaze',
+                blur: 'Blur',
+                gamma: 'Gamma',
+                rotate: 'Rotate',
+                flipH: '↔️ Flip H',
+                flipV: '↕️ Flip V',
+                reset: '↺ Reset',
+                export: '💾 Export',
+                exportTitle: 'Export Image',
+                exportFormat: 'Format:',
+                quality: 'Quality',
+                fileName: 'File Name:',
+                cancel: 'Cancel',
+                exportBtn: 'Export',
+                noImageToEdit: 'No image selected for editing',
+                colorMode: 'Color',
+                bwMode: 'B&W'
+            }
+        };
         const COLOR_ZONE_KEYS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
-        const COLOR_ZONE_LABELS = {
-            red: 'Red',
-            orange: 'Orange',
-            yellow: 'Yellow',
-            green: 'Green',
-            aqua: 'Aqua',
-            blue: 'Blue',
-            purple: 'Purple',
-            magenta: 'Magenta'
+        const COLOR_ZONE_LABELS_I18N = {
+            vi: {
+                red: 'Đỏ',
+                orange: 'Cam',
+                yellow: 'Vàng',
+                green: 'Xanh lá',
+                aqua: 'Xanh ngọc',
+                blue: 'Xanh dương',
+                purple: 'Tím',
+                magenta: 'Hồng tím'
+            },
+            en: {
+                red: 'Red',
+                orange: 'Orange',
+                yellow: 'Yellow',
+                green: 'Green',
+                aqua: 'Aqua',
+                blue: 'Blue',
+                purple: 'Purple',
+                magenta: 'Magenta'
+            }
         };
 
         function createEmptyColorZones() {
@@ -796,14 +925,20 @@
         const ZOOM_MAX = 8;
         const ZOOM_STEP = 0.12;
         const authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+        let currentLang = localStorage.getItem(LANG_KEY) || 'vi';
 
         document.addEventListener('DOMContentLoaded', () => {
-            currentImage = sessionStorage.getItem('currentEditImage');
+            if (!I18N[currentLang]) currentLang = 'vi';
+            document.getElementById('languageSelectEdit').value = currentLang;
+            const params = new URLSearchParams(window.location.search);
+            currentImage = params.get('image') || sessionStorage.getItem('currentEditImage');
             if (!currentImage) {
-                alert('Không có ảnh để chỉnh sửa');
-                window.close();
+                alert(t('noImageToEdit'));
+                window.location.href = '/preview';
                 return;
             }
+            sessionStorage.setItem('currentEditImage', currentImage);
+            applyLanguage();
             setupEventListeners();
             setupZoomControls();
             setupPanControls();
@@ -844,6 +979,8 @@
 
             document.getElementById('flipHBtn').addEventListener('click', () => { currentEdits.flipH = !currentEdits.flipH; updatePreview(); });
             document.getElementById('flipVBtn').addEventListener('click', () => { currentEdits.flipV = !currentEdits.flipV; updatePreview(); });
+            document.getElementById('goPreviewBtn').addEventListener('click', goToPreviewPage);
+            document.getElementById('languageSelectEdit').addEventListener('change', (e) => setLanguage(e.target.value));
             document.getElementById('savePresetBtn').addEventListener('click', openSavePresetModal);
             document.getElementById('resetBtn').addEventListener('click', resetEdits);
             document.getElementById('exportBtn').addEventListener('click', openExportModal);
@@ -860,6 +997,76 @@
             document.querySelectorAll('input[type="range"]').forEach((slider) => {
                 slider.addEventListener('dblclick', () => resetSingleSlider(slider));
             });
+        }
+
+        function t(key) {
+            return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.vi[key] || key);
+        }
+
+        function getColorZoneLabel(zone) {
+            return (COLOR_ZONE_LABELS_I18N[currentLang] && COLOR_ZONE_LABELS_I18N[currentLang][zone]) || zone;
+        }
+
+        function setLanguage(lang) {
+            currentLang = I18N[lang] ? lang : 'vi';
+            if (currentLang === (localStorage.getItem(LANG_KEY) || 'vi')) {
+                return;
+            }
+            localStorage.setItem(LANG_KEY, currentLang);
+            window.location.reload();
+        }
+
+        function applyLanguage() {
+            document.title = t('title');
+            document.getElementById('goPreviewBtn').textContent = t('preview');
+            document.getElementById('editModeBtn').textContent = t('edit');
+            document.getElementById('navTitle').textContent = t('navigator');
+            document.getElementById('navigatorPreviewText').textContent = t('preview');
+            document.getElementById('presetTitle').textContent = t('presets');
+            document.getElementById('histogramTitle').textContent = t('histogram');
+            document.getElementById('whiteBalanceTitle').textContent = t('whiteBalance');
+            document.getElementById('lightTitle').textContent = t('light');
+            document.getElementById('colorGradingTitle').textContent = t('colorGrading');
+            document.getElementById('detailTitle').textContent = t('detail');
+            document.getElementById('effectsTitle').textContent = t('effects');
+            document.getElementById('temperatureLabel').textContent = t('temperature');
+            document.getElementById('tintLabel').textContent = t('tint');
+            document.getElementById('exposureLabel').textContent = t('exposure');
+            document.getElementById('contrastLabel').textContent = t('contrast');
+            document.getElementById('highlightsLabel').textContent = t('highlights');
+            document.getElementById('shadowsLabel').textContent = t('shadows');
+            document.getElementById('whitesLabel').textContent = t('whites');
+            document.getElementById('blacksLabel').textContent = t('blacks');
+            document.getElementById('zoneHueLabel').textContent = t('hue');
+            document.getElementById('zoneSatLabel').textContent = t('saturation');
+            document.getElementById('zoneLumLabel').textContent = t('luminance');
+            document.getElementById('saturationLabel').textContent = t('saturation');
+            document.getElementById('vibranceLabel').textContent = t('vibrance');
+            document.getElementById('hueLabel').textContent = t('hue');
+            document.getElementById('clarityLabel').textContent = t('clarity');
+            document.getElementById('sharpenLabel').textContent = t('sharpen');
+            document.getElementById('dehazeLabel').textContent = t('dehaze');
+            document.getElementById('blurLabel').textContent = t('blur');
+            document.getElementById('gammaLabel').textContent = t('gamma');
+            document.getElementById('rotateLabel').textContent = t('rotate');
+            document.getElementById('flipHBtn').textContent = t('flipH');
+            document.getElementById('flipVBtn').textContent = t('flipV');
+            document.getElementById('resetBtn').textContent = t('reset');
+            document.getElementById('exportBtn').textContent = t('export');
+            document.getElementById('exportModalTitle').textContent = t('exportTitle');
+            document.getElementById('exportFormatLabel').textContent = t('exportFormat');
+            document.getElementById('qualitySliderLabel').innerHTML = `${t('quality')}: <span id="qualityValue">${document.getElementById('qualitySlider').value}</span>%`;
+            document.getElementById('exportNameLabel').textContent = t('fileName');
+            document.getElementById('cancelExportBtn').textContent = t('cancel');
+            document.getElementById('confirmExportBtn').textContent = t('exportBtn');
+            document.getElementById('modeColorBtn').textContent = t('colorMode');
+            document.getElementById('modeBwBtn').textContent = t('bwMode');
+            document.getElementById('selectedColorName').textContent = getColorZoneLabel(selectedColorZone);
+
+            const emptyPresets = document.querySelector('#presetsList p.text-muted.small');
+            if (emptyPresets) {
+                emptyPresets.textContent = t('noPresets');
+            }
         }
 
         function getSliderDefaultValue(id) {
@@ -967,6 +1174,13 @@
             syncZoneSliders();
         }
 
+        function goToPreviewPage() {
+            if (currentImage) {
+                sessionStorage.setItem('lastSelectedImage', currentImage);
+            }
+            window.location.href = `/preview?image=${encodeURIComponent(currentImage || '')}`;
+        }
+
         function setColorMode(mode, triggerUpdate = true) {
             currentEdits.colorMode = mode;
             document.getElementById('modeColorBtn').classList.toggle('active', mode === 'color');
@@ -985,7 +1199,7 @@
             document.querySelectorAll('.zone-dot').forEach((dot) => {
                 dot.classList.toggle('active', dot.dataset.zone === zone);
             });
-            document.getElementById('selectedColorName').textContent = COLOR_ZONE_LABELS[zone] || zone;
+            document.getElementById('selectedColorName').textContent = getColorZoneLabel(zone);
             syncZoneSliders();
 
             if (triggerUpdate) {

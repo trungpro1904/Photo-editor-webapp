@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo Editor - Preview</title>
+    <title>Photo Editor - Xem trước</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -437,12 +437,18 @@
                 <button id="topPreviewBtn" class="btn btn-outline-info" disabled>Xem trước</button>
                 <button id="topEditBtn" class="btn btn-success" disabled>Chỉnh sửa</button>
             </div>
+            <div class="ms-2">
+                <select id="languageSelect" class="form-select form-select-sm" style="width: 110px;">
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
             <div class="auth-box ms-auto me-2">
-                <span id="authUserText" class="auth-user">Guest</span>
+                <span id="authUserText" class="auth-user">Khách</span>
                 <button id="openAuthBtn" class="btn btn-sm btn-outline-light" style="text-transform:none; letter-spacing:0; padding:0.3rem 0.55rem;">Đăng nhập</button>
                 <button id="logoutBtn" class="btn btn-sm btn-outline-warning" style="display:none; text-transform:none; letter-spacing:0; padding:0.3rem 0.55rem;">Đăng xuất</button>
             </div>
-            <span class="navbar-text text-secondary">Cửa sổ Preview</span>
+            <span id="previewWindowLabel" class="navbar-text text-secondary">Cửa sổ xem trước</span>
             <!-- Progress Bar -->
             <div id="progressBarContainer" class="progress-bar-container" style="display: none; position: absolute; left: 20px; top: 12px;">
                 <div class="progress-bar-bg" style="width: 200px;">
@@ -456,21 +462,19 @@
     <div class="row" style="margin: 0; height: calc(100vh - 60px);">
         <!-- Left Panel -->
         <div class="col-md-3 bg-light sidebar p-3">
-            <h5 class="mb-3">Tải ảnh lên</h5>
+            <h5 id="uploadTitle" class="mb-3">Tải ảnh lên</h5>
             
             <div class="mb-3">
-                <label for="fileInput" class="form-label">Chọn file ảnh:</label>
+                <label id="fileInputLabel" for="fileInput" class="form-label">Chọn file ảnh:</label>
                 <input type="file" class="form-control" id="fileInput" accept="image/*,.arw,.nef,.cr2,.cr3,.dng,.tiff,.tif,.raf,.orf,.rw2,.srw,.x3f" multiple>
-                <small class="text-muted d-block mt-1">Hỗ trợ: JPG, PNG, TIFF, RAW (ARW, NEF, CR2, CR3, DNG, RAF, ORF, RW2, SRW, X3F)</small>
+                <small id="supportedFormatsLabel" class="text-muted d-block mt-1">Hỗ trợ: JPG, PNG, TIFF, RAW (ARW, NEF, CR2, CR3, DNG, RAF, ORF, RW2, SRW, X3F)</small>
             </div>
 
-            <button class="btn btn-primary w-100 mb-3" id="uploadBtn">
-                📤 Tải lên
-            </button>
+            <button class="btn btn-primary w-100 mb-3" id="uploadBtn">Tải lên</button>
 
             <hr>
 
-            <h6 class="mb-2">Các ảnh đã tải</h6>
+            <h6 id="uploadedImagesTitle" class="mb-2">Các ảnh đã tải</h6>
             <div id="imageList" style="max-height: 400px; overflow-y: auto;">
                 <p class="text-muted small">Chưa có ảnh nào</p>
             </div>
@@ -480,16 +484,16 @@
         <div class="col-md-6 preview-panel">
             <div class="preview-container">
                 <div id="previewPlaceholder" class="text-white-50 text-center">
-                    <div style="font-size: 3rem; margin-bottom: 1rem;">📷</div>
-                    <p>Chọn một ảnh để xem preview</p>
+                    
+                    <p id="previewPlaceholderText">Chọn một ảnh để xem trước</p>
                 </div>
-                <img id="previewImage" src="" alt="Preview" style="display: none; max-width: 100%; max-height: 100%; object-fit: contain;">
+                <img id="previewImage" src="" alt="Ảnh xem trước" style="display: none; max-width: 100%; max-height: 100%; object-fit: contain;">
             </div>
         </div>
 
         <!-- Right Panel -->
         <div class="col-md-3 bg-light sidebar p-3">
-            <h5 class="mb-3">Tùy chọn</h5>
+            <h5 id="optionsTitle" class="mb-3">Tùy chọn</h5>
 
             <div id="selectedImageInfo" class="alert alert-info d-none mb-3" role="alert">
                 <small id="selectedImageText"></small>
@@ -497,7 +501,7 @@
 
             <hr>
 
-            <h6 class="mb-2">Thông tin Chi tiết</h6>
+            <h6 id="detailsTitle" class="mb-2">Thông tin Chi tiết</h6>
             <div id="imageDetails" class="small">
                 <p class="text-muted">Chọn ảnh để xem thông tin</p>
             </div>
@@ -505,8 +509,8 @@
     </div>
 
     <div id="imageContextMenu" class="image-context-menu" style="display:none;">
-        <button id="ctxDeleteBtn">🗑️ Xóa ảnh</button>
-        <button id="ctxExportBtn">💾 Xuất ảnh</button>
+        <button id="ctxDeleteBtn">Xóa ảnh</button>
+        <button id="ctxExportBtn">Xuất ảnh</button>
     </div>
 
     <!-- Auth Modal -->
@@ -548,13 +552,151 @@
         const API_BASE_URL = 'http://localhost:5000/api';
         const AUTH_TOKEN_KEY = 'photoEditorAuthToken';
         const AUTH_USER_KEY = 'photoEditorAuthUser';
+        const LANG_KEY = 'photoEditorLanguage';
+        const LANG_RELOAD_FLAG_KEY = 'photoEditorLangReload';
+        const I18N = {
+            vi: {
+                title: 'Photo Editor - Xem trước',
+                previewWindow: 'Cửa sổ xem trước',
+                uploadTitle: 'Tải ảnh lên',
+                fileInput: 'Chọn file ảnh:',
+                supported: 'Hỗ trợ: JPG, PNG, TIFF, RAW (ARW, NEF, CR2, CR3, DNG, RAF, ORF, RW2, SRW, X3F)',
+                upload: 'Tải lên',
+                preview: 'Xem trước',
+                edit: 'Chỉnh sửa',
+                uploadedImages: 'Các ảnh đã tải',
+                noImages: 'Chưa có ảnh nào',
+                previewHint: 'Chọn một ảnh để xem trước',
+                options: 'Tùy chọn',
+                details: 'Thông tin Chi tiết',
+                noDetails: 'Chọn ảnh để xem thông tin',
+                guest: 'Khách',
+                login: 'Đăng nhập',
+                logout: 'Đăng xuất',
+                deleteImage: 'Xóa ảnh',
+                exportImage: 'Xuất ảnh',
+                selected: 'Đã chọn',
+                chooseFile: 'Vui lòng chọn ít nhất một file',
+                uploadError: 'Lỗi upload file',
+                exportError: 'Lỗi xuất ảnh',
+                deleteConfirm: 'Xóa ảnh này?',
+                failedPreview: 'Không tải được ảnh xem trước',
+                unsupportedFile: 'Tệp có thể chưa được hỗ trợ',
+                error: 'Lỗi',
+                unknown: 'Không rõ',
+                image: 'Ảnh',
+                name: 'Tên',
+                type: 'Loại',
+                size: 'Kích thước',
+                format: 'Định dạng',
+                fileSize: 'Dung lượng',
+                camera: 'Máy ảnh',
+                dateTaken: 'Ngày chụp',
+                iso: 'ISO',
+                fstop: 'Khẩu độ',
+                exposureTime: 'Thời gian phơi sáng',
+                exposureBias: 'Bù phơi sáng',
+                exposureProgram: 'Chế độ phơi sáng',
+                meteringMode: 'Đo sáng',
+                flashMode: 'Flash',
+                focalLength: 'Tiêu cự',
+                lensMaker: 'Hãng ống kính',
+                lensModel: 'Ống kính'
+            },
+            en: {
+                title: 'Photo Editor - Preview',
+                previewWindow: 'Preview Window',
+                uploadTitle: 'Upload Images',
+                fileInput: 'Choose image files:',
+                supported: 'Supported: JPG, PNG, TIFF, RAW (ARW, NEF, CR2, CR3, DNG, RAF, ORF, RW2, SRW, X3F)',
+                upload: 'Upload',
+                preview: 'Preview',
+                edit: 'Edit',
+                uploadedImages: 'Uploaded Images',
+                noImages: 'No images yet',
+                previewHint: 'Choose an image to preview',
+                options: 'Options',
+                details: 'Details',
+                noDetails: 'Select an image to view details',
+                guest: 'Guest',
+                login: 'Login',
+                logout: 'Logout',
+                deleteImage: 'Delete Image',
+                exportImage: 'Export Image',
+                selected: 'Selected',
+                chooseFile: 'Please choose at least one file',
+                uploadError: 'Upload failed for',
+                exportError: 'Export error',
+                deleteConfirm: 'Delete this image?',
+                failedPreview: 'Failed to load preview',
+                unsupportedFile: 'File may not be supported',
+                error: 'Error',
+                unknown: 'Unknown',
+                image: 'Image',
+                name: 'Name',
+                type: 'Type',
+                size: 'Size',
+                format: 'Format',
+                fileSize: 'File Size',
+                camera: 'Camera',
+                dateTaken: 'Date Taken',
+                iso: 'ISO',
+                fstop: 'F-stop',
+                exposureTime: 'Exposure Time',
+                exposureBias: 'Exposure Bias',
+                exposureProgram: 'Exposure Program',
+                meteringMode: 'Metering Mode',
+                flashMode: 'Flash Mode',
+                focalLength: 'Focal Length',
+                lensMaker: 'Lens Maker',
+                lensModel: 'Lens Model'
+            }
+        };
+
+        const EXIF_VALUE_I18N = {
+            vi: {
+                exposureProgram: {
+                    'aperture-priority ae': 'Ưu tiên khẩu độ',
+                    'shutter speed priority ae': 'Ưu tiên tốc độ',
+                    'manual': 'Thủ công',
+                    'program ae': 'Tự động theo chương trình'
+                },
+                meteringMode: {
+                    'evaluative': 'Đo sáng đánh giá',
+                    'spot': 'Đo sáng điểm',
+                    'center-weighted average': 'Đo sáng trung bình trung tâm',
+                    'multi-segment': 'Đo sáng đa vùng',
+                    'matrix': 'Đo sáng ma trận'
+                },
+                flashMode: {
+                    'no flash': 'Không dùng flash',
+                    'off, did not fire': 'Tắt flash, không kích hoạt',
+                    'did not fire': 'Flash không kích hoạt',
+                    'fired': 'Flash đã kích hoạt'
+                }
+            },
+            en: {
+                exposureProgram: {},
+                meteringMode: {},
+                flashMode: {}
+            }
+        };
         let selectedImage = null;
         let uploadedImages = [];
         let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+        let currentLang = localStorage.getItem(LANG_KEY) || 'vi';
         let currentUser = null;
         let contextMenuImageIndex = null;
+        let requestedImageFilename = null;
+        let isInternalNavigation = false;
 
         document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            requestedImageFilename = urlParams.get('image') || sessionStorage.getItem('lastSelectedImage') || null;
+            if (!I18N[currentLang]) currentLang = 'vi';
+            sessionStorage.removeItem(LANG_RELOAD_FLAG_KEY);
+            document.getElementById('languageSelect').value = currentLang;
+            applyLanguage();
             setupEventListeners();
             await initAuthState();
             await restoreWorkspace();
@@ -584,6 +726,7 @@
 
         function setupEventListeners() {
             document.getElementById('uploadBtn').addEventListener('click', handleUpload);
+            document.getElementById('languageSelect').addEventListener('change', (e) => setLanguage(e.target.value));
             document.getElementById('topEditBtn').addEventListener('click', openEditWindow);
             document.getElementById('topPreviewBtn').addEventListener('click', handleTopPreview);
             document.getElementById('openAuthBtn').addEventListener('click', openAuthModal);
@@ -597,6 +740,46 @@
             document.getElementById('ctxExportBtn').addEventListener('click', handleContextExport);
             window.addEventListener('click', closeContextMenu);
             window.addEventListener('scroll', closeContextMenu, true);
+        }
+
+        function t(key) {
+            return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.vi[key] || key);
+        }
+
+        function translateExifValue(kind, value) {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            const mapped = EXIF_VALUE_I18N[currentLang]?.[kind]?.[raw.toLowerCase()];
+            return mapped || raw;
+        }
+
+        function setLanguage(lang) {
+            currentLang = I18N[lang] ? lang : 'vi';
+            if (currentLang === (localStorage.getItem(LANG_KEY) || 'vi')) {
+                return;
+            }
+            localStorage.setItem(LANG_KEY, currentLang);
+            sessionStorage.setItem(LANG_RELOAD_FLAG_KEY, '1');
+            window.location.reload();
+        }
+
+        function applyLanguage() {
+            document.title = t('title');
+            document.getElementById('previewWindowLabel').textContent = t('previewWindow');
+            document.getElementById('uploadTitle').textContent = t('uploadTitle');
+            document.getElementById('fileInputLabel').textContent = t('fileInput');
+            document.getElementById('supportedFormatsLabel').textContent = t('supported');
+            document.getElementById('uploadBtn').textContent = t('upload');
+            document.getElementById('topPreviewBtn').textContent = t('preview');
+            document.getElementById('topEditBtn').textContent = t('edit');
+            document.getElementById('uploadedImagesTitle').textContent = t('uploadedImages');
+            document.getElementById('previewPlaceholderText').textContent = t('previewHint');
+            document.getElementById('optionsTitle').textContent = t('options');
+            document.getElementById('detailsTitle').textContent = t('details');
+            document.getElementById('openAuthBtn').textContent = t('login');
+            document.getElementById('logoutBtn').textContent = t('logout');
+            document.getElementById('ctxDeleteBtn').textContent = t('deleteImage');
+            document.getElementById('ctxExportBtn').textContent = t('exportImage');
         }
 
         function handleTopPreview() {
@@ -653,7 +836,7 @@
                 loginBtn.style.display = 'none';
                 logoutBtn.style.display = 'inline-block';
             } else {
-                authText.textContent = 'Guest';
+                authText.textContent = t('guest');
                 loginBtn.style.display = 'inline-block';
                 logoutBtn.style.display = 'none';
             }
@@ -706,7 +889,7 @@
             const password = document.getElementById('authPasswordInput').value;
 
             if (!email || !password) {
-                alert('Vui lòng nhập đầy đủ email và mật khẩu.');
+                alert(currentLang === 'vi' ? 'Vui lòng nhập đầy đủ email và mật khẩu.' : 'Please enter both email and password.');
                 return;
             }
 
@@ -726,7 +909,7 @@
                 saveAuthSession(data.token, data.user);
                 bootstrap.Modal.getInstance(document.getElementById('authModal')).hide();
                 await restoreWorkspace();
-                alert('✓ Đăng nhập thành công!');
+                alert(currentLang === 'vi' ? '✓ Đăng nhập thành công!' : '✓ Login successful!');
             } catch (error) {
                 alert(`✗ ${error.message}`);
             }
@@ -739,7 +922,7 @@
             updateImageList();
             document.getElementById('previewImage').style.display = 'none';
             document.getElementById('previewPlaceholder').style.display = 'block';
-            document.getElementById('imageDetails').innerHTML = '<p class="text-muted">Chọn ảnh để xem thông tin</p>';
+            document.getElementById('imageDetails').innerHTML = `<p class="text-muted">${t('noDetails')}</p>`;
             document.getElementById('topEditBtn').disabled = true;
             document.getElementById('topPreviewBtn').disabled = true;
         }
@@ -770,6 +953,13 @@
             }
 
             updateImageList();
+
+            if (requestedImageFilename) {
+                const index = uploadedImages.findIndex((img) => img.filename === requestedImageFilename);
+                if (index >= 0) {
+                    await selectImage(index);
+                }
+            }
         }
 
         async function persistWorkspace() {
@@ -797,9 +987,12 @@
 
         function handleBeforeUnload() {
             if (authToken) return;
+            if (isInternalNavigation) return;
+            if (sessionStorage.getItem(LANG_RELOAD_FLAG_KEY) === '1') return;
 
             sessionStorage.removeItem(getGuestSessionStorageKey());
             sessionStorage.removeItem('currentEditImage');
+            sessionStorage.removeItem('lastSelectedImage');
 
             try {
                 fetch(`${API_BASE_URL}/auth/guest/reset`, {
@@ -820,40 +1013,37 @@
         }
 
         function renderImageDetails(image, metadata = {}) {
-            const typeLabel = metadata.isRaw ? 'RAW' : (metadata.format?.toUpperCase() || 'Image');
+            const typeLabel = metadata.isRaw ? 'RAW' : (metadata.format?.toUpperCase() || t('image'));
             const sizeInfo = (metadata.width && metadata.height) ? `${metadata.width}x${metadata.height} px` : 'N/A';
             const details = [
-                `<div><strong>Tên:</strong> ${image.originalName}</div>`,
-                `<div><strong>Type:</strong> ${typeLabel}</div>`,
-                `<div><strong>Kích thước:</strong> ${sizeInfo}</div>`,
-                `<div><strong>Format:</strong> ${metadata.format?.toUpperCase() || 'Unknown'}</div>`,
-                `<div><strong>Dung lượng:</strong> ${formatFileSize(metadata.fileSize)}</div>`
+                `<div><strong>${t('name')}:</strong> ${image.originalName}</div>`,
+                `<div><strong>${t('type')}:</strong> ${typeLabel}</div>`,
+                `<div><strong>${t('size')}:</strong> ${sizeInfo}</div>`,
+                `<div><strong>${t('format')}:</strong> ${metadata.format?.toUpperCase() || t('unknown')}</div>`,
+                `<div><strong>${t('fileSize')}:</strong> ${formatFileSize(metadata.fileSize)}</div>`
             ];
 
             const raw = metadata.rawDetails || {};
-            if (metadata.isRaw) {
-                const extra = [
-                    ['Camera', [raw.cameraMaker, raw.cameraModel].filter(Boolean).join(' ')],
-                    ['Date taken', raw.dateTaken],
-                    ['ISO speed', raw.iso ? `ISO-${raw.iso}` : ''],
-                    ['F-stop', raw.fStop],
-                    ['Exposure time', raw.exposureTime],
-                    ['Exposure bias', raw.exposureBias],
-                    ['Exposure program', raw.exposureProgram],
-                    ['Metering mode', raw.meteringMode],
-                    ['Flash mode', raw.flashMode],
-                    ['Focal length', raw.focalLength],
-                    ['Lens maker', raw.lensMaker],
-                    ['Lens model', raw.lensModel],
-                    ['Camera serial', raw.serialNumber]
-                ];
+            const extra = [
+                [t('camera'), [raw.cameraMaker, raw.cameraModel].filter(Boolean).join(' ')],
+                [t('dateTaken'), raw.dateTaken],
+                [t('iso'), raw.iso ? `ISO-${raw.iso}` : ''],
+                [t('fstop'), raw.fStop],
+                [t('exposureTime'), raw.exposureTime],
+                [t('exposureBias'), raw.exposureBias],
+                [t('exposureProgram'), translateExifValue('exposureProgram', raw.exposureProgram)],
+                [t('meteringMode'), translateExifValue('meteringMode', raw.meteringMode)],
+                [t('flashMode'), translateExifValue('flashMode', raw.flashMode)],
+                [t('focalLength'), raw.focalLength],
+                [t('lensMaker'), raw.lensMaker],
+                [t('lensModel'), raw.lensModel]
+            ];
 
-                extra.forEach(([label, value]) => {
-                    if (value) {
-                        details.push(`<div><strong>${label}:</strong> ${value}</div>`);
-                    }
-                });
-            }
+            extra.forEach(([label, value]) => {
+                if (value) {
+                    details.push(`<div><strong>${label}:</strong> ${value}</div>`);
+                }
+            });
 
             document.getElementById('imageDetails').innerHTML = details.join('');
         }
@@ -863,7 +1053,7 @@
             const files = fileInput.files;
 
             if (files.length === 0) {
-                alert('Vui lòng chọn ít nhất một file');
+                alert(t('chooseFile'));
                 return;
             }
 
@@ -872,15 +1062,15 @@
 
             for (let file of files) {
                 try {
-                    console.log(`📤 Uploading: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                    console.log(`Uploading: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
                     
                     // Upload with progress tracking
                     await uploadFileWithProgress(file);
 
                     console.log(`✓ Upload: ${file.name}`);
                 } catch (error) {
-                    console.error(`❌ Lỗi upload: ${error.message}`);
-                    alert(`❌ Lỗi upload file ${file.name}:\n${error.message}`);
+                    console.error(`Lỗi upload: ${error.message}`);
+                    alert(`${t('uploadError')} ${file.name}:\n${error.message}`);
                 }
             }
 
@@ -949,7 +1139,7 @@
             const imageList = document.getElementById('imageList');
 
             if (uploadedImages.length === 0) {
-                imageList.innerHTML = '<p class="text-muted small">Chưa có ảnh nào</p>';
+                imageList.innerHTML = `<p class="text-muted small">${t('noImages')}</p>`;
                 return;
             }
 
@@ -1009,7 +1199,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ filename: image.filename, format: 'jpeg', quality: 90, ppi: 300 })
                 });
-                if (!response.ok) throw new Error('Export failed');
+                if (!response.ok) throw new Error(currentLang === 'vi' ? 'Xuất ảnh thất bại' : 'Export failed');
                 const data = await response.json();
                 const link = document.createElement('a');
                 link.href = data.exportPath;
@@ -1018,13 +1208,14 @@
                 link.click();
                 document.body.removeChild(link);
             } catch (error) {
-                alert(`Lỗi xuất ảnh: ${error.message}`);
+                alert(`${t('exportError')}: ${error.message}`);
             }
         }
 
         async function selectImage(index) {
             selectedImage = index;
             const image = uploadedImages[index];
+            sessionStorage.setItem('lastSelectedImage', image.filename);
             updateImageList();
 
             const previewImage = document.getElementById('previewImage');
@@ -1048,15 +1239,15 @@
                     if (metaResponse.ok) {
                         metadata = await metaResponse.json();
                     } else {
-                        console.warn(`⚠️ Metadata fetch returned ${metaResponse.status}`);
+                        console.warn(`Metadata fetch returned ${metaResponse.status}`);
                     }
                 } catch (metaError) {
-                    console.warn(`⚠️ Metadata fetch error: ${metaError.message} - continuing anyway`);
+                    console.warn(`Metadata fetch error: ${metaError.message} - continuing anyway`);
                     metadata.isRaw = isRaw;
                 }
 
                 // Generate preview (works for both RAW and standard formats)
-                console.log(`📸 Requesting preview for: ${image.originalName}`);
+                console.log(`Requesting preview for: ${image.originalName}`);
                 const previewResponse = await authFetch(`${API_BASE_URL}/image/preview`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1071,7 +1262,7 @@
                 const previewData = await previewResponse.json();
                 const previewUrl = previewData.previewPath + '?t=' + Date.now();
                 
-                console.log(`🎬 Preview URL received: ${previewUrl}`);
+                console.log(`Preview URL received: ${previewUrl}`);
 
                 // Set up image load handlers BEFORE setting src
                 previewImage.onload = () => {
@@ -1086,8 +1277,8 @@
                     console.error(`✗ Failed to load preview image from: ${previewUrl}`);
                     previewPlaceholder.innerHTML = `
                         <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
-                        <p style="color: #f44336;">Failed to load preview</p>
-                        <p style="font-size: 0.85rem; color: #999;">File may not be supported</p>
+                        <p style="color: #f44336;">${t('failedPreview')}</p>
+                        <p style="font-size: 0.85rem; color: #999;">${t('unsupportedFile')}</p>
                     `;
                     previewPlaceholder.style.display = 'block';
                     previewImage.style.display = 'none';
@@ -1102,13 +1293,12 @@
                 renderImageDetails(image, metadata);
 
                 document.getElementById('selectedImageInfo').classList.remove('d-none');
-                document.getElementById('selectedImageText').textContent = `Đã chọn: ${image.originalName}`;
+                document.getElementById('selectedImageText').textContent = `${t('selected')}: ${image.originalName}`;
             } catch (error) {
-                console.error('❌ Lỗi selectImage:', error.message);
+                console.error('Lỗi selectImage:', error.message);
                 showLoading(false);
                 previewPlaceholder.innerHTML = `
-                    <div style="font-size: 2rem; margin-bottom: 1rem;">❌</div>
-                    <p style="color: #f44336;">Error</p>
+                    <p style="color: #f44336;">${t('error')}</p>
                     <p style="font-size: 0.85rem; color: #999;">${error.message}</p>
                 `;
                 previewPlaceholder.style.display = 'block';
@@ -1123,13 +1313,15 @@
             if (selectedImage === null) return;
             const image = uploadedImages[selectedImage];
             sessionStorage.setItem('currentEditImage', image.filename);
-            window.open('edit.html', '_blank', 'width=1400,height=800');
+            sessionStorage.setItem('lastSelectedImage', image.filename);
+            isInternalNavigation = true;
+            window.location.href = `/edit?image=${encodeURIComponent(image.filename)}`;
         }
 
         function handleDelete(indexToDelete = null) {
             const deleteIndex = indexToDelete !== null ? indexToDelete : selectedImage;
             if (deleteIndex === null || deleteIndex < 0 || deleteIndex >= uploadedImages.length) return;
-            if (!confirm('Xóa ảnh này?')) return;
+            if (!confirm(t('deleteConfirm'))) return;
 
             uploadedImages.splice(deleteIndex, 1);
             selectedImage = null;
@@ -1139,7 +1331,7 @@
             document.getElementById('selectedImageInfo').classList.add('d-none');
             document.getElementById('topEditBtn').disabled = true;
             document.getElementById('topPreviewBtn').disabled = true;
-            document.getElementById('imageDetails').innerHTML = '<p class="text-muted">Chọn ảnh để xem thông tin</p>';
+            document.getElementById('imageDetails').innerHTML = `<p class="text-muted">${t('noDetails')}</p>`;
 
             updateImageList();
         }

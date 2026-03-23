@@ -7,6 +7,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { execFile } = require('child_process');
 const util = require('util');
+const { exiftool } = require('exiftool-vendored');
 
 const execFilePromise = util.promisify(execFile);
 
@@ -130,9 +131,10 @@ class ImageProcessor {
         console.warn(`⚠️ Sharp metadata fallback for ${ext}: ${sharpError.message}`);
       }
 
-      let rawDetails = {};
-      if (isRaw) {
-        rawDetails = await this.getRawMetadataWithMagick(filePath);
+      // Use ExifTool as primary metadata source for better fidelity across codecs.
+      let rawDetails = await this.getMetadataWithExifTool(filePath);
+      if (!rawDetails || Object.keys(rawDetails).length === 0) {
+        rawDetails = await this.getMetadataWithMagick(filePath);
       }
 
       const stats = await fs.stat(filePath);
@@ -343,7 +345,7 @@ Questions? Check: https://imagemagick.org/script/index.php
 
   static cleanMagickValue(value = '') {
     const cleaned = String(value).trim();
-    if (!cleaned || cleaned === '(null)' || cleaned.includes('%[')) {
+    if (!cleaned || cleaned === '(null)' || cleaned.toLowerCase() === 'null' || cleaned.toLowerCase() === 'undefined' || cleaned.includes('%[')) {
       return '';
     }
     return cleaned;
@@ -354,6 +356,105 @@ Questions? Check: https://imagemagick.org/script/index.php
     if (!cleaned) return null;
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  static formatExifDate(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (value instanceof Date && Number.isFinite(value.getTime())) {
+      return value.toISOString();
+    }
+    if (typeof value === 'object' && typeof value.toISOString === 'function') {
+      try {
+        return value.toISOString();
+      } catch {
+        // Fall through to string conversion.
+      }
+    }
+    return String(value);
+  }
+
+  static pickExifTag(tags, keys = []) {
+    for (const key of keys) {
+      const value = tags?.[key];
+      if (value === null || value === undefined) continue;
+      const cleaned = this.cleanMagickValue(value);
+      if (cleaned) return value;
+    }
+    return null;
+  }
+
+  static parseNumericValue(value) {
+    const raw = this.cleanMagickValue(value);
+    if (!raw) return null;
+
+    const fractionMatch = raw.match(/(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?(?:e[+\-]?\d+)?)/i);
+    if (fractionMatch) {
+      const numerator = Number(fractionMatch[1]);
+      const denominator = Number(fractionMatch[2]);
+      if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0) {
+        return numerator / denominator;
+      }
+    }
+
+    const numberMatch = raw.match(/(-?\d+(?:\.\d+)?(?:e[+\-]?\d+)?)/i);
+    if (!numberMatch) return null;
+    const n = Number(numberMatch[1]);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  static parseLengthMm(value) {
+    const n = this.parseNumericValue(value);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n;
+  }
+
+  static formatLengthMm(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    const rounded = Math.abs(n - Math.round(n)) < 0.01 ? Math.round(n) : Number(n.toFixed(1));
+    return `${rounded} mm`;
+  }
+
+  static parseApertureValue(value) {
+    const n = this.parseNumericValue(value);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n;
+  }
+
+  static normalizeLensModel(value) {
+    const raw = this.cleanMagickValue(value);
+    if (!raw) return '';
+
+    // RAW metadata may include malformed aperture ranges like f/0-0 or f/4-.
+    let cleaned = raw
+      .replace(/\s*f\/0(?:\.0+)?\s*-\s*0(?:\.0+)?\s*$/i, '')
+      .replace(/f\/(\d+(?:\.\d+)?)\s*-\s*0(?:\.0+)?/i, 'f/$1')
+      .replace(/f\/(\d+(?:\.\d+)?)\s*-\s*\1/i, 'f/$1')
+      .replace(/f\/(\d+(?:\.\d+)?)\s*-\s*$/i, 'f/$1')
+      .trim();
+    if (!cleaned) return '';
+
+    cleaned = cleaned.replace(/(\d+(?:\.\d+)?(?:e[+\-]?\d+)?)/gi, (match) => {
+      const n = Number(match);
+      if (!Number.isFinite(n) || n <= 0) return '';
+      return Math.abs(n - Math.round(n)) < 0.01 ? String(Math.round(n)) : Number(n.toFixed(1)).toString();
+    });
+
+    const rangeMatch = cleaned.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*mm(\s+f\/\d+(?:\.\d+)?)?$/i);
+    if (rangeMatch) {
+      const min = Number(rangeMatch[1]);
+      const max = Number(rangeMatch[2]);
+      const apertureSuffix = (rangeMatch[3] || '').trim();
+      if (Number.isFinite(min) && Number.isFinite(max)) {
+        if (Math.abs(min - max) < 0.01) {
+          return `${this.formatLengthMm(min)}${apertureSuffix ? ` ${apertureSuffix}` : ''}`;
+        }
+        return `${this.formatLengthMm(min).replace(' mm', '')}-${this.formatLengthMm(max)}${apertureSuffix ? ` ${apertureSuffix}` : ''}`;
+      }
+    }
+
+    return cleaned;
   }
 
   static normalizeFraction(value) {
@@ -528,6 +629,99 @@ Questions? Check: https://imagemagick.org/script/index.php
     });
   }
 
+  static clamp01(v) {
+    if (v < 0) return 0;
+    if (v > 1) return 1;
+    return v;
+  }
+
+  // Luminance tone mapping for highlight recovery + shadow lift.
+  // Shadow lift includes mild denoise in dark regions to avoid noise amplification.
+  static async applyToneMappingAndShadowDenoise(image, highlights = 0, shadows = 0) {
+    if (!highlights && !shadows) {
+      return image;
+    }
+
+    const shadowBoost = Math.max(0, Number(shadows) / 100);
+    const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const out = Buffer.from(data);
+
+    let denoised = null;
+    if (shadowBoost > 0.05) {
+      const denoisedInfo = await sharp(data, { raw: info })
+        .blur(0.7)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      denoised = denoisedInfo.data;
+    }
+
+    for (let i = 0; i < out.length; i += info.channels) {
+      const r = out[i] / 255;
+      const g = out[i + 1] / 255;
+      const b = out[i + 2] / 255;
+
+      // Use Rec.709 luminance for perceptual tone mapping.
+      const originalLum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+      let baseR = r;
+      let baseG = g;
+      let baseB = b;
+
+      if (denoised && shadowBoost > 0) {
+        const darkWeight = Math.pow(Math.max(0, (0.38 - originalLum) / 0.38), 1.6);
+        const denoiseMix = shadowBoost * darkWeight * 0.34;
+        if (denoiseMix > 0) {
+          const dr = denoised[i] / 255;
+          const dg = denoised[i + 1] / 255;
+          const db = denoised[i + 2] / 255;
+          baseR = baseR * (1 - denoiseMix) + dr * denoiseMix;
+          baseG = baseG * (1 - denoiseMix) + dg * denoiseMix;
+          baseB = baseB * (1 - denoiseMix) + db * denoiseMix;
+        }
+      }
+
+      const lum = 0.2126 * baseR + 0.7152 * baseG + 0.0722 * baseB;
+      let mappedLum = lum;
+
+      const shadowVal = Number(shadows) / 100;
+      if (shadowVal > 0) {
+        const w = Math.pow(Math.max(0, (0.55 - lum) / 0.55), 1.4);
+        const lift = shadowVal * 0.68 * w;
+        mappedLum = mappedLum + (1 - mappedLum) * lift;
+      } else if (shadowVal < 0) {
+        const w = Math.pow(Math.max(0, (0.55 - lum) / 0.55), 1.25);
+        const darken = (-shadowVal) * 0.5 * w;
+        mappedLum = mappedLum * (1 - darken);
+      }
+
+      const highlightVal = Number(highlights) / 100;
+      if (highlightVal > 0) {
+        const w = Math.pow(Math.max(0, (lum - 0.42) / 0.58), 1.45);
+        const compress = highlightVal * 1.15 * w;
+        mappedLum = 1 - ((1 - mappedLum) / (1 + compress));
+      } else if (highlightVal < 0) {
+        const w = Math.pow(Math.max(0, (lum - 0.42) / 0.58), 1.25);
+        const boost = (-highlightVal) * 0.42 * w;
+        mappedLum = mappedLum + (1 - mappedLum) * boost;
+      }
+
+      const scale = mappedLum / Math.max(1e-6, lum);
+
+      out[i] = Math.round(this.clamp01(baseR * scale) * 255);
+      out[i + 1] = Math.round(this.clamp01(baseG * scale) * 255);
+      out[i + 2] = Math.round(this.clamp01(baseB * scale) * 255);
+      // Keep alpha channel unchanged when present.
+    }
+
+    return sharp(out, {
+      raw: {
+        width: info.width,
+        height: info.height,
+        channels: info.channels
+      }
+    });
+  }
+
   static async applyAdjustments(image, edits = {}) {
     const num = (v, fallback = 0) => {
       const n = Number(v);
@@ -565,7 +759,7 @@ Questions? Check: https://imagemagick.org/script/index.php
       ]);
     }
 
-    const brightnessScale = 1 + (brightness / 115) + (colorL / 220) + (shadows / 320) + (whites / 300) - (blacks / 340);
+    const brightnessScale = 1 + (brightness / 115) + (colorL / 220) + (whites / 300) - (blacks / 340);
     const saturationScale = Math.max(0, 1 + (saturation / 105) + (vibrance / 145) + (colorS / 175));
     const hueShift = Math.round(hue + colorH + (temperature * 0.05) + (tint * 0.08));
 
@@ -577,16 +771,14 @@ Questions? Check: https://imagemagick.org/script/index.php
       });
     }
 
-    if (contrast || clarity || dehaze || highlights || shadows || whites || blacks) {
+    if (contrast || clarity || dehaze || whites || blacks) {
       const contrastFactor = 1 + (contrast / 90) + (clarity / 320) + (dehaze / 280);
-      const offset = 128 * (1 - contrastFactor) + (highlights * -0.35) + (shadows * 0.25) + (whites * 0.2) + (blacks * -0.2);
+      const offset = 128 * (1 - contrastFactor) + (whites * 0.2) + (blacks * -0.2);
       image = image.linear(contrastFactor, offset);
     }
 
-    if (highlights > 0) {
-      image = image.gamma(1 + (highlights / 450));
-    } else if (highlights < 0) {
-      image = image.gamma(Math.max(0.6, 1 + (highlights / 550)));
+    if (highlights || shadows) {
+      image = await this.applyToneMappingAndShadowDenoise(image, highlights, shadows);
     }
 
     if (blur > 0) {
@@ -623,6 +815,69 @@ Questions? Check: https://imagemagick.org/script/index.php
   }
 
   static async getRawMetadataWithMagick(filePath) {
+    return this.getMetadataWithMagick(filePath);
+  }
+
+  static async getMetadataWithExifTool(filePath) {
+    try {
+      const tags = await exiftool.read(filePath);
+
+      const make = this.cleanMagickValue(this.pickExifTag(tags, ['Make', 'CanonModelID']) || '');
+      const model = this.cleanMagickValue(this.pickExifTag(tags, ['Model', 'CameraModelName']) || '');
+      const dateRaw = this.pickExifTag(tags, ['DateTimeOriginal', 'CreateDate', 'MediaCreateDate']);
+      const isoRaw = this.pickExifTag(tags, ['ISO', 'PhotographicSensitivity', 'BaseISO']);
+      const exposureRaw = this.pickExifTag(tags, ['ExposureTime']);
+
+      const focalLengthCandidates = [
+        this.pickExifTag(tags, ['FocalLength']),
+        this.pickExifTag(tags, ['FocalLengthIn35mmFormat', 'FocalLengthIn35mmFilm']),
+        this.pickExifTag(tags, ['MinFocalLength']),
+        this.pickExifTag(tags, ['MaxFocalLength'])
+      ];
+      const focalLengthMm = focalLengthCandidates
+        .map((v) => this.parseLengthMm(v))
+        .find((n) => Number.isFinite(n) && n > 0) || null;
+
+      const apertureCandidates = [
+        this.parseApertureValue(this.pickExifTag(tags, ['FNumber'])),
+        this.parseApertureValue(this.pickExifTag(tags, ['Aperture', 'ApertureValue', 'MaxApertureValue'])),
+        this.parseApertureValue(this.pickExifTag(tags, ['LensFNumber']))
+      ];
+      const aperture = apertureCandidates.find((n) => Number.isFinite(n) && n > 0) || null;
+
+      const lensMake = this.cleanMagickValue(this.pickExifTag(tags, ['LensMake']) || '');
+      const lensFromExif = this.normalizeLensModel(
+        this.pickExifTag(tags, ['LensModel', 'LensID', 'LensType', 'Lens', 'LensInfo'])
+      );
+
+      const iso = this.parseScientificNumber(isoRaw);
+
+      return {
+        cameraMaker: make,
+        cameraModel: model,
+        dateTaken: this.formatExifDate(dateRaw),
+        iso: iso ? Math.round(iso) : this.cleanMagickValue(isoRaw || ''),
+        fStop: aperture ? `f/${Number(aperture.toFixed(1)).toString()}` : '',
+        exposureTime: this.normalizeFraction(exposureRaw),
+        exposureProgram: this.cleanMagickValue(this.pickExifTag(tags, ['ExposureProgram']) || ''),
+        exposureBias: this.cleanMagickValue(this.pickExifTag(tags, ['ExposureCompensation', 'ExposureBiasValue']) || ''),
+        meteringMode: this.cleanMagickValue(this.pickExifTag(tags, ['MeteringMode']) || ''),
+        flashMode: this.cleanMagickValue(this.pickExifTag(tags, ['Flash', 'FlashMode']) || ''),
+        focalLength: this.formatLengthMm(focalLengthMm),
+        lensMaker: lensMake,
+        lensModel: lensFromExif || 'N/A',
+        serialNumber: this.cleanMagickValue(this.pickExifTag(tags, ['SerialNumber', 'BodySerialNumber', 'CameraSerialNumber']) || ''),
+        width: Number(tags?.ImageWidth || tags?.ExifImageWidth || 0),
+        height: Number(tags?.ImageHeight || tags?.ExifImageHeight || 0),
+        format: this.cleanMagickValue(tags?.FileTypeExtension || tags?.FileType || '')
+      };
+    } catch (error) {
+      console.warn(`⚠️ Metadata via exiftool failed: ${error.message}`);
+      return {};
+    }
+  }
+
+  static async getMetadataWithMagick(filePath) {
     try {
       const { stdout } = await execFilePromise('magick', ['identify', '-verbose', filePath], { windowsHide: true, maxBuffer: 20 * 1024 * 1024 });
       const text = String(stdout || '');
@@ -640,19 +895,49 @@ Questions? Check: https://imagemagick.org/script/index.php
         return '';
       };
 
-      const make = getTag('dng:make', 'exif:Make');
-      const model = getTag('dng:camera.model.name', 'exif:Model');
-      const rawDate = getTag('dng:create.date', 'exif:DateTimeOriginal', 'date:create');
-      const isoRaw = getTag('dng:iso.setting', 'exif:ISOSpeedRatings');
-      const exposureRaw = getTag('dng:exposure.time', 'exif:ExposureTime');
-      const focalLengthRaw = getTag('dng:focal.length.in.35mm.format', 'dng:focal.length', 'exif:FocalLength');
-      const lens = getTag('dng:lens', 'exif:LensModel');
-      const lensMake = getTag('dng:lens.make', 'exif:LensMake');
-      const serial = getTag('dng:camera.serial.number', 'exif:BodySerialNumber');
+      const make = getTag('exif:Make', 'dng:make');
+      const model = getTag('exif:Model', 'dng:camera.model.name');
+      const rawDate = getTag('exif:DateTimeOriginal', 'exif:CreateDate', 'dng:create.date', 'date:create');
+      const isoRaw = getTag('exif:PhotographicSensitivity', 'exif:ISOSpeedRatings', 'dng:iso.setting');
+      const exposureRaw = getTag('exif:ExposureTime', 'dng:exposure.time');
+      const focalLengthCandidates = [
+        getTag('exif:FocalLength'),
+        getTag('exif:FocalLengthIn35mmFilm'),
+        getTag('dng:focal.length'),
+        getTag('dng:focal.length.in.35mm.format'),
+        getTag('dng:min.focal.length'),
+        getTag('dng:max.focal.length')
+      ];
+
+      const focalLengthMm = focalLengthCandidates
+        .map((v) => this.parseLengthMm(v))
+        .find((n) => Number.isFinite(n) && n > 0) || null;
+
+      const minFocal = this.parseLengthMm(getTag('dng:min.focal.length'));
+      const maxFocal = this.parseLengthMm(getTag('dng:max.focal.length'));
+
+      let lens = this.normalizeLensModel(
+        getTag('exif:LensModel', 'exif:Lens', 'exif:LensInfo', 'exif:LensSpecification')
+      ) || this.normalizeLensModel(getTag('dng:lens'));
+
+      if (!lens && Number.isFinite(minFocal) && minFocal > 0) {
+        // Fallback when model string is unavailable in RAW maker notes.
+        lens = this.formatLengthMm(minFocal);
+      }
+
+      const lensMake = getTag('exif:LensMake', 'dng:lens.make');
+      const serial = getTag('exif:BodySerialNumber', 'dng:camera.serial.number', 'dng:serial.number');
       const width = this.parseScientificNumber(getTag('Geometry'));
 
-      const apertureFromLens = (lens.match(/f\/(\d+(?:\.\d+)?)/i) || [])[1] || '';
-      const aperture = apertureFromLens || this.cleanMagickValue(getTag('dng:max.aperture.at.min.focal', 'exif:FNumber'));
+      const apertureCandidates = [
+        this.parseApertureValue(getTag('exif:FNumber')),
+        this.parseApertureValue(getTag('exif:ApertureValue')),
+        this.parseApertureValue(getTag('dng:f.number')),
+        this.parseApertureValue(getTag('dng:aperture.value')),
+        this.parseApertureValue(getTag('dng:max.aperture.at.min.focal')),
+        this.parseApertureValue(getTag('dng:max.aperture.at.max.focal'))
+      ];
+      const aperture = apertureCandidates.find((n) => Number.isFinite(n) && n > 0) || null;
       const iso = this.parseScientificNumber(isoRaw);
 
       const widthHeightMatch = text.match(/\bGeometry:\s*(\d+)x(\d+)/i);
@@ -663,14 +948,14 @@ Questions? Check: https://imagemagick.org/script/index.php
         cameraMaker: make,
         cameraModel: model,
         dateTaken: rawDate,
-        iso: iso || this.cleanMagickValue(isoRaw),
-        fStop: aperture ? `f/${String(aperture).replace(/^f\//i, '')}` : '',
+        iso: iso ? Math.round(iso) : this.cleanMagickValue(isoRaw),
+        fStop: aperture ? `f/${Number(aperture.toFixed(1)).toString()}` : '',
         exposureTime: this.normalizeFraction(exposureRaw),
         exposureProgram: this.cleanMagickValue(getTag('exif:ExposureProgram')),
         exposureBias: this.cleanMagickValue(getTag('exif:ExposureBiasValue')),
         meteringMode: this.cleanMagickValue(getTag('exif:MeteringMode')),
         flashMode: this.cleanMagickValue(getTag('exif:Flash')),
-        focalLength: this.cleanMagickValue(focalLengthRaw),
+        focalLength: this.formatLengthMm(focalLengthMm),
         lensMaker: lensMake,
         lensModel: lens,
         serialNumber: serial,
@@ -679,7 +964,7 @@ Questions? Check: https://imagemagick.org/script/index.php
         format: this.cleanMagickValue(getTag('Format')).split(' ')[0]
       };
     } catch (error) {
-      console.warn(`⚠️ RAW metadata via magick failed: ${error.message}`);
+      console.warn(`⚠️ Metadata via magick failed: ${error.message}`);
       return {};
     }
   }

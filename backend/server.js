@@ -111,6 +111,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
+app.get('/preview', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 // Serve index.html cho các route khác (SPA support)
 app.get('/edit*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'edit.html'));
