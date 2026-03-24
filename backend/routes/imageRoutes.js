@@ -125,4 +125,19 @@ router.post('/preset/save', async (req, res) => {
   }
 });
 
+// Refine lasso points to object contour using OpenCV
+router.post('/object/refine', async (req, res) => {
+  try {
+    const { filename, points } = req.body || {};
+    if (!filename || !Array.isArray(points)) {
+      return res.status(400).json({ error: 'Thiếu filename hoặc points' });
+    }
+
+    const result = await imageProcessor.refineObjectSelection(filename, points);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

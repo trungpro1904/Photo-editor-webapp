@@ -5,7 +5,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const util = require('util');
 const { exiftool } = require('exiftool-vendored');
 
@@ -21,6 +21,7 @@ const UPLOAD_DIR = path.isAbsolute(configuredUploadDir)
   : path.join(BACKEND_ROOT, configuredUploadDir);
 const EDITS_DIR = path.join(UPLOAD_DIR, 'edits');
 const PRESETS_DIR = path.join(BACKEND_ROOT, 'presets');
+const OPENCV_SCRIPT_PATH = path.join(__dirname, 'opencv_object_tools.py');
 const RAW_FORMATS = ['.arw', '.nef', '.cr2', '.cr3', '.dng', '.raf', '.orf', '.rw2', '.srw', '.x3f'];
 const GUEST_SCOPE = 'guest';
 const COLOR_ZONES = [
@@ -482,6 +483,122 @@ Questions? Check: https://imagemagick.org/script/index.php
       return this.toPathFromUploadUrl(previewUrl);
     }
     return path.join(UPLOAD_DIR, filename);
+  }
+
+  static normalizeLassoPoints(points = []) {
+    if (!Array.isArray(points)) return [];
+    return points
+      .map((p) => {
+        const x = Number(p?.x);
+        const y = Number(p?.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        return {
+          x: Math.max(0, Math.min(1, x)),
+          y: Math.max(0, Math.min(1, y))
+        };
+      })
+      .filter(Boolean);
+  }
+
+  static runOpenCvTool(payload) {
+    const runOnce = (command, args) => new Promise((resolve, reject) => {
+      const child = spawn(command, args, { windowsHide: true });
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
+
+      child.on('error', (error) => {
+        reject(error);
+      });
+
+      child.on('close', (code) => {
+        if (code !== 0) {
+          return reject(new Error(stderr || stdout || `OpenCV tool exited with code ${code}`));
+        }
+        try {
+          const parsed = JSON.parse(stdout || '{}');
+          resolve(parsed);
+        } catch (error) {
+          reject(new Error(`OpenCV tool returned invalid JSON: ${error.message}`));
+        }
+      });
+
+      child.stdin.write(JSON.stringify(payload));
+      child.stdin.end();
+    });
+
+    const venvPythonCandidates = [
+      path.resolve(BACKEND_ROOT, '..', '..', '.venv', 'Scripts', 'python.exe'),
+      path.resolve(BACKEND_ROOT, '..', '.venv', 'Scripts', 'python.exe')
+    ].filter((candidate) => fsSync.existsSync(candidate));
+
+    const runners = [
+      ...venvPythonCandidates.map((pythonPath) => ({ command: pythonPath, args: [OPENCV_SCRIPT_PATH] })),
+      { command: 'python', args: [OPENCV_SCRIPT_PATH] },
+      { command: 'py', args: ['-3', OPENCV_SCRIPT_PATH] }
+    ];
+
+    return runners.reduce(async (previous, runner) => {
+      try {
+        return await previous;
+      } catch {
+        return runOnce(runner.command, runner.args);
+      }
+    }, Promise.reject(new Error('init'))).catch((error) => {
+      throw new Error(`OpenCV không khả dụng (${error.message}). Hãy cài Python + opencv-python`);
+    });
+  }
+
+  static async refineObjectSelection(filename, points = []) {
+    const normalizedPoints = this.normalizeLassoPoints(points);
+    if (normalizedPoints.length < 3) {
+      throw new Error('Lasso cần ít nhất 3 điểm');
+    }
+
+    const sourcePath = await this.resolvePreviewSourcePath(filename);
+    const result = await this.runOpenCvTool({
+      action: 'refine',
+      imagePath: sourcePath,
+      points: normalizedPoints
+    });
+
+    return {
+      mode: result.mode || 'lasso',
+      points: this.normalizeLassoPoints(result.points || normalizedPoints),
+      pixelArea: Number(result.pixelArea || 0)
+    };
+  }
+
+  static async applyObjectRemovalToFile(sourcePath, objectRemove = {}) {
+    const points = this.normalizeLassoPoints(objectRemove?.points || []);
+    if (points.length < 3) return sourcePath;
+
+    const outputName = `object-removed-${Date.now()}-${Math.round(Math.random() * 1e6)}.png`;
+    const outputPath = path.join(EDITS_DIR, outputName);
+    await this.runOpenCvTool({
+      action: 'remove',
+      imagePath: sourcePath,
+      points,
+      outputPath
+    });
+
+    if (!fsSync.existsSync(outputPath)) {
+      throw new Error('Không tạo được ảnh sau khi xóa vật thể');
+    }
+
+    return outputPath;
+  }
+
+  static async prepareSourcePathWithObjectRemoval(sourcePath, edits = {}) {
+    if (!edits?.objectRemove?.points) return sourcePath;
+    return this.applyObjectRemovalToFile(sourcePath, edits.objectRemove);
   }
 
   static hasSelectiveColorEdits(edits = {}) {
@@ -973,7 +1090,8 @@ Questions? Check: https://imagemagick.org/script/index.php
   static async applyEdits(filename, edits = {}, userId = null) {
     try {
       const resolvedEdits = await this.getEffectiveEdits(filename, edits, userId);
-      const sourcePath = await this.resolvePreviewSourcePath(filename);
+      const baseSourcePath = await this.resolvePreviewSourcePath(filename);
+      const sourcePath = await this.prepareSourcePathWithObjectRemoval(baseSourcePath, resolvedEdits);
       let image = sharp(sourcePath);
       image = await this.applyAdjustments(image, resolvedEdits);
 
@@ -998,8 +1116,9 @@ Questions? Check: https://imagemagick.org/script/index.php
 
       const previewName = `preview-${Date.now()}.jpg`;
       const previewPath = path.join(EDITS_DIR, previewName);
-      const sourcePath = await this.resolvePreviewSourcePath(filename);
       const resolvedEdits = await this.getEffectiveEdits(filename, edits, userId);
+      const baseSourcePath = await this.resolvePreviewSourcePath(filename);
+      const sourcePath = await this.prepareSourcePathWithObjectRemoval(baseSourcePath, resolvedEdits);
       let image = sharp(sourcePath);
       image = await this.applyAdjustments(image, resolvedEdits);
 
@@ -1039,7 +1158,8 @@ Questions? Check: https://imagemagick.org/script/index.php
     try {
       const edits = await this.getSavedEdits(filename, userId);
 
-      const sourcePath = await this.resolvePreviewSourcePath(filename);
+      const baseSourcePath = await this.resolvePreviewSourcePath(filename);
+      const sourcePath = await this.prepareSourcePathWithObjectRemoval(baseSourcePath, edits);
       let image = sharp(sourcePath);
       image = await this.applyAdjustments(image, edits);
 
@@ -1154,8 +1274,9 @@ Questions? Check: https://imagemagick.org/script/index.php
   // Get histogram data from image
   static async getHistogram(filename, edits = {}, userId = null) {
     try {
-      const sourcePath = await this.resolvePreviewSourcePath(filename);
       const resolvedEdits = await this.getEffectiveEdits(filename, edits, userId);
+      const baseSourcePath = await this.resolvePreviewSourcePath(filename);
+      const sourcePath = await this.prepareSourcePathWithObjectRemoval(baseSourcePath, resolvedEdits);
       let image = sharp(sourcePath).resize(1400, 1400, { fit: 'inside', withoutEnlargement: true });
       image = await this.applyAdjustments(image, resolvedEdits);
 
