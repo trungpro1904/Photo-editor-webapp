@@ -37,6 +37,14 @@ const COLOR_ZONES = [
 
 // Cache for RAW to JPG conversions (filename -> preview URL)
 const RAW_CONVERSION_CACHE = new Map();
+const OPENCV_PERSISTENT = (process.env.OPENCV_PERSISTENT || '1').trim().toLowerCase() !== '0';
+let opencvWorker = null;
+let opencvWorkerRunnerKey = null;
+let opencvWorkerBuffer = '';
+let opencvWorkerPending = null;
+let opencvWorkerTimeout = null;
+let opencvWorkerDrainHooked = false;
+let opencvWorkerQueue = Promise.resolve();
 
 // Ensure directories exist
 const ensureDirs = async () => {
@@ -534,6 +542,140 @@ Questions? Check: https://imagemagick.org/script/index.php
       child.stdin.end();
     });
 
+    const cleanupWorker = (error) => {
+      if (opencvWorkerTimeout) {
+        clearTimeout(opencvWorkerTimeout);
+        opencvWorkerTimeout = null;
+      }
+      if (opencvWorkerPending) {
+        const pending = opencvWorkerPending;
+        opencvWorkerPending = null;
+        pending.reject(error || new Error('OpenCV worker stopped unexpectedly'));
+      }
+      if (opencvWorker) {
+        try {
+          opencvWorker.kill();
+        } catch {
+          // ignore
+        }
+      }
+      opencvWorker = null;
+      opencvWorkerRunnerKey = null;
+      opencvWorkerBuffer = '';
+    };
+
+    const hookProcessDrain = () => {
+      if (opencvWorkerDrainHooked) return;
+      opencvWorkerDrainHooked = true;
+      process.on('exit', () => {
+        if (!opencvWorker) return;
+        try {
+          opencvWorker.kill();
+        } catch {
+          // ignore
+        }
+      });
+    };
+
+    const ensureWorker = (runner) => {
+      const runnerKey = `${runner.command}::${runner.args.join(' ')}`;
+      if (opencvWorker && opencvWorkerRunnerKey === runnerKey && !opencvWorker.killed) {
+        return;
+      }
+
+      cleanupWorker();
+      hookProcessDrain();
+
+      const args = [...runner.args, '--stdio-server'];
+      opencvWorker = spawn(runner.command, args, { windowsHide: true });
+      opencvWorkerRunnerKey = runnerKey;
+      opencvWorkerBuffer = '';
+
+      opencvWorker.stdout.on('data', (chunk) => {
+        opencvWorkerBuffer += chunk.toString();
+        let newlineIndex = opencvWorkerBuffer.indexOf('\n');
+        while (newlineIndex >= 0) {
+          const line = opencvWorkerBuffer.slice(0, newlineIndex).trim();
+          opencvWorkerBuffer = opencvWorkerBuffer.slice(newlineIndex + 1);
+          if (line && opencvWorkerPending) {
+            let parsed;
+            try {
+              parsed = JSON.parse(line);
+            } catch {
+              const pending = opencvWorkerPending;
+              opencvWorkerPending = null;
+              if (opencvWorkerTimeout) {
+                clearTimeout(opencvWorkerTimeout);
+                opencvWorkerTimeout = null;
+              }
+              pending.reject(new Error('OpenCV worker returned invalid JSON line'));
+              newlineIndex = opencvWorkerBuffer.indexOf('\n');
+              continue;
+            }
+
+            const pending = opencvWorkerPending;
+            opencvWorkerPending = null;
+            if (opencvWorkerTimeout) {
+              clearTimeout(opencvWorkerTimeout);
+              opencvWorkerTimeout = null;
+            }
+            if (parsed && parsed.error) {
+              pending.reject(new Error(parsed.error));
+            } else {
+              pending.resolve(parsed || {});
+            }
+          }
+          newlineIndex = opencvWorkerBuffer.indexOf('\n');
+        }
+      });
+
+      opencvWorker.stderr.on('data', () => {
+        // Keep stderr silent here; structured error is returned via stdout JSON.
+      });
+
+      opencvWorker.on('error', (error) => {
+        cleanupWorker(error);
+      });
+
+      opencvWorker.on('close', (code) => {
+        cleanupWorker(new Error(`OpenCV worker exited with code ${code}`));
+      });
+    };
+
+    const runWithPersistent = async (runner) => {
+      ensureWorker(runner);
+      if (!opencvWorker || opencvWorker.killed) {
+        throw new Error('OpenCV worker unavailable');
+      }
+      if (opencvWorkerPending) {
+        throw new Error('OpenCV worker busy');
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        opencvWorkerPending = { resolve, reject };
+        opencvWorkerTimeout = setTimeout(() => {
+          if (!opencvWorkerPending) return;
+          opencvWorkerPending = null;
+          const timeoutError = new Error('OpenCV worker timeout');
+          cleanupWorker();
+          reject(timeoutError);
+        }, 180000);
+
+        try {
+          opencvWorker.stdin.write(`${JSON.stringify(payload)}\n`);
+        } catch (error) {
+          opencvWorkerPending = null;
+          if (opencvWorkerTimeout) {
+            clearTimeout(opencvWorkerTimeout);
+            opencvWorkerTimeout = null;
+          }
+          reject(error);
+        }
+      });
+
+      return result;
+    };
+
     const venvPythonCandidates = [
       path.resolve(BACKEND_ROOT, '..', '..', '.venv', 'Scripts', 'python.exe'),
       path.resolve(BACKEND_ROOT, '..', '.venv', 'Scripts', 'python.exe')
@@ -545,13 +687,30 @@ Questions? Check: https://imagemagick.org/script/index.php
       { command: 'py', args: ['-3', OPENCV_SCRIPT_PATH] }
     ];
 
-    return runners.reduce(async (previous, runner) => {
-      try {
-        return await previous;
-      } catch {
-        return runOnce(runner.command, runner.args);
+    const execute = async () => {
+      let lastError = new Error('init');
+      for (const runner of runners) {
+        try {
+          if (OPENCV_PERSISTENT) {
+            return await runWithPersistent(runner);
+          }
+          return await runOnce(runner.command, runner.args);
+        } catch (error) {
+          lastError = error;
+          if (OPENCV_PERSISTENT) {
+            cleanupWorker(error);
+          }
+        }
       }
-    }, Promise.reject(new Error('init'))).catch((error) => {
+      throw lastError;
+    };
+
+    const queued = opencvWorkerQueue
+      .then(() => execute())
+      .catch(() => execute());
+    opencvWorkerQueue = queued.catch(() => {});
+
+    return queued.catch((error) => {
       throw new Error(`OpenCV không khả dụng (${error.message}). Hãy cài Python + opencv-python`);
     });
   }
@@ -594,6 +753,33 @@ Questions? Check: https://imagemagick.org/script/index.php
     }
 
     return outputPath;
+  }
+
+  static async commitObjectRemoval(filename, points = []) {
+    const normalizedPoints = this.normalizeLassoPoints(points);
+    if (normalizedPoints.length < 3) {
+      throw new Error('Lasso cần ít nhất 3 điểm để xóa vật thể');
+    }
+
+    const sourcePath = await this.resolvePreviewSourcePath(filename);
+    const outputName = `committed-object-removed-${Date.now()}-${Math.round(Math.random() * 1e6)}.png`;
+    const outputPath = path.join(UPLOAD_DIR, outputName);
+
+    await this.runOpenCvTool({
+      action: 'remove',
+      imagePath: sourcePath,
+      points: normalizedPoints,
+      outputPath
+    });
+
+    if (!fsSync.existsSync(outputPath)) {
+      throw new Error('Không lưu được ảnh sau khi xóa vật thể');
+    }
+
+    return {
+      filename: outputName,
+      previewPath: `/uploads/${outputName}`
+    };
   }
 
   static async prepareSourcePathWithObjectRemoval(sourcePath, edits = {}) {

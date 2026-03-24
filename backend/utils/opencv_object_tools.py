@@ -6,16 +6,200 @@ import cv2
 import numpy as np
 import torch
 from PIL import Image
-from simple_lama_inpainting import SimpleLama
 from transformers import SamModel, SamProcessor
 
 
 SAM_MODEL_ID = os.environ.get("SAM_MODEL_ID", "nielsr/slimsam-50-uniform")
 SAM_DEVICE = "cpu"
-USE_LAMA = os.environ.get("USE_LAMA_INPAINT", "1").strip().lower() not in {"0", "false", "no"}
 _SAM_PROCESSOR = None
 _SAM_MODEL = None
-_LAMA_MODEL = None
+
+
+def _compute_mask_bbox(mask, padding=0):
+    ys, xs = np.where(mask > 0)
+    if xs.size == 0 or ys.size == 0:
+        return None
+
+    x0 = max(0, int(xs.min()) - int(padding))
+    y0 = max(0, int(ys.min()) - int(padding))
+    x1 = min(mask.shape[1], int(xs.max()) + 1 + int(padding))
+    y1 = min(mask.shape[0], int(ys.max()) + 1 + int(padding))
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return x0, y0, x1, y1
+
+
+def _create_feature_detector(method):
+    m = (method or "").strip().lower()
+    if m == "surf":
+        if hasattr(cv2, "xfeatures2d") and hasattr(cv2.xfeatures2d, "SURF_create"):
+            return cv2.xfeatures2d.SURF_create(hessianThreshold=350)
+        return None
+    if m == "sift":
+        if hasattr(cv2, "SIFT_create"):
+            return cv2.SIFT_create(nfeatures=1800)
+        return None
+    if m == "orb":
+        if hasattr(cv2, "ORB_create"):
+            return cv2.ORB_create(nfeatures=2200, scaleFactor=1.2, nlevels=8)
+        return None
+    return None
+
+
+def _compute_context_mask(mask):
+    outer = cv2.dilate(mask, np.ones((17, 17), np.uint8), iterations=1)
+    inner = cv2.dilate(mask, np.ones((7, 7), np.uint8), iterations=1)
+    ring = cv2.subtract(outer, inner)
+    return (ring > 0).astype(np.uint8) * 255
+
+
+def _clip_bbox(x0, y0, x1, y1, w, h):
+    x0 = max(0, min(w, int(x0)))
+    y0 = max(0, min(h, int(y0)))
+    x1 = max(0, min(w, int(x1)))
+    y1 = max(0, min(h, int(y1)))
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return x0, y0, x1, y1
+
+
+def _estimate_translation_from_matches(matches, kps_ctx, kps_src):
+    if len(matches) < 6:
+        return None
+
+    deltas = []
+    for m in matches:
+        p_ctx = kps_ctx[m.queryIdx].pt
+        p_src = kps_src[m.trainIdx].pt
+        deltas.append((p_src[0] - p_ctx[0], p_src[1] - p_ctx[1]))
+
+    if not deltas:
+        return None
+
+    dx = float(np.median([d[0] for d in deltas]))
+    dy = float(np.median([d[1] for d in deltas]))
+    return dx, dy
+
+
+def _pick_nearest_valid_source_bbox(matches, kps_ctx, kps_src, mask, target_bbox, w, h):
+    x0, y0, x1, y1 = target_bbox
+    bw = x1 - x0
+    bh = y1 - y0
+    if bw <= 0 or bh <= 0:
+        return None
+
+    max_search_dist = float(max(24, int(max(bw, bh) * 2.2)))
+    candidates = []
+
+    for m in matches:
+        try:
+            p_ctx = kps_ctx[m.queryIdx].pt
+            p_src = kps_src[m.trainIdx].pt
+        except Exception:
+            continue
+
+        dx = float(p_src[0] - p_ctx[0])
+        dy = float(p_src[1] - p_ctx[1])
+        dist = float(np.hypot(dx, dy))
+        if dist > max_search_dist:
+            continue
+
+        src_bbox = _clip_bbox(x0 + dx, y0 + dy, x1 + dx, y1 + dy, w, h)
+        if src_bbox is None:
+            continue
+
+        sx0, sy0, sx1, sy1 = src_bbox
+        if (sx1 - sx0) != bw or (sy1 - sy0) != bh:
+            continue
+
+        overlap = np.count_nonzero(mask[sy0:sy1, sx0:sx1] > 0)
+        overlap_ratio = float(overlap) / float(max(1, bw * bh))
+        if overlap_ratio > 0.02:
+            continue
+
+        quality = float(getattr(m, "distance", 1.0))
+        candidates.append((dist, overlap_ratio, quality, src_bbox))
+
+    if not candidates:
+        return None
+
+    # Prefer spatially nearest region first; then lower overlap and better descriptor score.
+    candidates.sort(key=lambda c: (c[0], c[1], c[2]))
+    return candidates[0][3]
+
+
+def _feature_copy_fill(image_bgr, mask, method):
+    h, w = image_bgr.shape[:2]
+    bbox = _compute_mask_bbox(mask, padding=0)
+    if bbox is None:
+        return None
+
+    detector = _create_feature_detector(method)
+    if detector is None:
+        return None
+
+    x0, y0, x1, y1 = bbox
+    bw = x1 - x0
+    bh = y1 - y0
+    if bw < 6 or bh < 6:
+        return None
+
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    context_mask = _compute_context_mask(mask)
+    source_mask = (mask == 0).astype(np.uint8) * 255
+
+    kps_ctx, desc_ctx = detector.detectAndCompute(gray, context_mask)
+    kps_src, desc_src = detector.detectAndCompute(gray, source_mask)
+
+    if desc_ctx is None or desc_src is None or len(kps_ctx) < 8 or len(kps_src) < 20:
+        return None
+
+    if method == "orb":
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        raw_matches = matcher.match(desc_ctx, desc_src)
+        raw_matches = sorted(raw_matches, key=lambda m: m.distance)
+        good_matches = raw_matches[: min(120, len(raw_matches))]
+    else:
+        matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+        knn = matcher.knnMatch(desc_ctx, desc_src, k=2)
+        good_matches = []
+        for pair in knn:
+            if len(pair) < 2:
+                continue
+            m, n = pair
+            if m.distance < 0.76 * n.distance:
+                good_matches.append(m)
+        good_matches = sorted(good_matches, key=lambda m: m.distance)[:120]
+
+    src_bbox = _pick_nearest_valid_source_bbox(good_matches, kps_ctx, kps_src, mask, (x0, y0, x1, y1), w, h)
+    if src_bbox is None:
+        shift = _estimate_translation_from_matches(good_matches, kps_ctx, kps_src)
+        if shift is None:
+            return None
+        dx, dy = shift
+        src_bbox = _clip_bbox(x0 + dx, y0 + dy, x1 + dx, y1 + dy, w, h)
+        if src_bbox is None:
+            return None
+
+    sx0, sy0, sx1, sy1 = src_bbox
+    if (sx1 - sx0) != bw or (sy1 - sy0) != bh:
+        return None
+
+    source_overlap = np.count_nonzero(mask[sy0:sy1, sx0:sx1] > 0)
+    if source_overlap > int(0.02 * bw * bh):
+        return None
+
+    out = image_bgr.copy()
+    source_patch = image_bgr[sy0:sy1, sx0:sx1]
+    target_mask = mask[y0:y1, x0:x1]
+
+    feather = cv2.GaussianBlur(target_mask, (0, 0), sigmaX=2.0, sigmaY=2.0)
+    alpha = (feather.astype(np.float32) / 255.0)[..., None]
+    target_patch = out[y0:y1, x0:x1].astype(np.float32)
+    source_patch_f = source_patch.astype(np.float32)
+    blended = target_patch * (1.0 - alpha) + source_patch_f * alpha
+    out[y0:y1, x0:x1] = np.clip(blended, 0, 255).astype(np.uint8)
+    return out
 
 
 def fail(message: str, code: int = 1):
@@ -31,6 +215,15 @@ def read_payload():
         return json.loads(raw)
     except Exception as exc:
         fail(f"Invalid JSON payload: {exc}")
+
+
+def parse_payload(raw):
+    if not raw:
+        raise ValueError("No payload")
+    try:
+        return json.loads(raw)
+    except Exception as exc:
+        raise ValueError(f"Invalid JSON payload: {exc}")
 
 
 def clamp01(v: float) -> float:
@@ -79,16 +272,6 @@ def get_sam_components():
     _SAM_MODEL.to(SAM_DEVICE)
     _SAM_MODEL.eval()
     return _SAM_PROCESSOR, _SAM_MODEL
-
-
-def get_lama_model():
-    global _LAMA_MODEL
-
-    if _LAMA_MODEL is not None:
-        return _LAMA_MODEL
-
-    _LAMA_MODEL = SimpleLama()
-    return _LAMA_MODEL
 
 
 def build_sam_prompts(points_px, width, height):
@@ -310,19 +493,14 @@ def remove_object(image_bgr, refined_points):
 
     mask = cv2.dilate(mask, np.ones((dilate_k, dilate_k), np.uint8), iterations=dilate_i)
 
-    if USE_LAMA:
+    # Fast local-feature fill (SURF/SIFT/ORB) before OpenCV inpaint fallback.
+    for method in ("surf", "sift", "orb"):
         try:
-            lama = get_lama_model()
-            image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-            image_pil = Image.fromarray(image_rgb)
-            mask_pil = Image.fromarray(mask).convert("L")
-            lama_result = lama(image_pil, mask_pil)
-            lama_np = np.array(lama_result)
-            if lama_np.ndim == 3 and lama_np.shape[2] == 3:
-                return cv2.cvtColor(lama_np, cv2.COLOR_RGB2BGR), "lama"
+            feature_out = _feature_copy_fill(image_bgr, mask, method)
+            if feature_out is not None:
+                return feature_out, f"feature-{method}"
         except Exception:
-            # Fall back to OpenCV methods when LaMa is unavailable/fails at runtime.
-            pass
+            continue
 
     # Exemplar-style fallback: FSR from OpenCV xphoto (contrib).
     # Final fallback: NS + Telea.
@@ -347,46 +525,74 @@ def remove_object(image_bgr, refined_points):
 
 def main():
     payload = read_payload()
+    result = process_payload(payload)
+    print(json.dumps(result))
+
+
+def process_payload(payload):
     action = (payload.get("action") or "").strip().lower()
     image_path = payload.get("imagePath")
 
     if not image_path or not os.path.exists(image_path):
-        fail("imagePath does not exist")
+        raise ValueError("imagePath does not exist")
 
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if image is None:
-        fail("Cannot read image")
+        raise ValueError("Cannot read image")
 
     points = payload.get("points") or []
     if not isinstance(points, list):
-        fail("points must be an array")
-
-    refined = refine_polygon(image, points)
+        raise ValueError("points must be an array")
 
     if action == "refine":
-        print(json.dumps(refined))
-        return
+        refined = refine_polygon(image, points)
+        return refined
 
     if action == "remove":
         output_path = payload.get("outputPath")
         if not output_path:
-            fail("outputPath is required for remove")
-        removed, inpaint_engine = remove_object(image, refined.get("points") or points)
+            raise ValueError("outputPath is required for remove")
+
+        # Performance: do not run SAM refine again in remove step.
+        # Frontend already sends refined points when available.
+        remove_points = points
+        removed, inpaint_engine = remove_object(image, remove_points)
+        points_px = points_to_pixels(remove_points, image.shape[1], image.shape[0]) if isinstance(remove_points, list) else np.array([], dtype=np.int32)
+        pixel_area = area_of_polygon(points_px) if len(points_px) >= 3 else 0.0
+        mode = (payload.get("mode") or "lasso").strip().lower()
+        if mode not in {"lasso", "refined"}:
+            mode = "lasso"
+
         ok = cv2.imwrite(output_path, removed)
         if not ok:
-            fail("Failed to write output image")
-        print(json.dumps({
+            raise RuntimeError("Failed to write output image")
+        return {
             "success": True,
-            "mode": refined.get("mode", "lasso"),
-            "points": refined.get("points", points),
+            "mode": mode,
+            "points": remove_points,
             "outputPath": output_path,
-            "pixelArea": refined.get("pixelArea", 0),
+            "pixelArea": pixel_area,
             "inpaintEngine": inpaint_engine
-        }))
-        return
+        }
 
-    fail("Unknown action")
+    raise ValueError("Unknown action")
 
+
+def run_stdio_server():
+    for raw in sys.stdin:
+        line = raw.strip()
+        if not line:
+            continue
+
+        try:
+            payload = parse_payload(line)
+            result = process_payload(payload)
+            print(json.dumps(result), flush=True)
+        except Exception as exc:
+            print(json.dumps({"error": str(exc)}), flush=True)
 
 if __name__ == "__main__":
-    main()
+    if "--stdio-server" in sys.argv:
+        run_stdio_server()
+    else:
+        main()
