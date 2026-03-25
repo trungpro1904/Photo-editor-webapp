@@ -131,13 +131,13 @@ class ImageProcessor {
       const ext = path.extname(filename).toLowerCase();
       const isRaw = RAW_FORMATS.includes(ext);
       
-      console.log(`📷 Processing ${isRaw ? 'RAW' : 'Standard'} file: ${filename}`);
+      console.log(`Processing ${isRaw ? 'RAW' : 'Standard'} file: ${filename}`);
 
       let sharpMetadata = {};
       try {
         sharpMetadata = await sharp(filePath).metadata();
       } catch (sharpError) {
-        console.warn(`⚠️ Sharp metadata fallback for ${ext}: ${sharpError.message}`);
+        console.warn(`Sharp metadata fallback for ${ext}: ${sharpError.message}`);
       }
 
       // Use ExifTool as primary metadata source for better fidelity across codecs.
@@ -160,7 +160,7 @@ class ImageProcessor {
         rawDetails
       };
     } catch (error) {
-      console.error(`❌ Metadata error for ${filename}:`, error.message);
+      console.error(`Metadata error for ${filename}:`, error.message);
       throw new Error(`Lỗi khi lấy metadata: ${error.message}`);
     }
   }
@@ -181,27 +181,27 @@ class ImageProcessor {
         return RAW_CONVERSION_CACHE.get(filename);
       }
 
-      console.log(`🎬 RAW Processing: ${filename} (${ext})`);
+      console.log(`RAW processing: ${filename} (${ext})`);
 
       // Use direct ImageMagick CLI first (most reliable on Windows + IM7)
       try {
         return await this.convertWithMagickCli(filename);
       } catch (err) {
-        console.warn(`⚠️ magick CLI failed: ${err.message}`);
+        console.warn(`magick CLI failed: ${err.message}`);
       }
 
       // Fallback: gm wrapper (may fail on Windows due convert.exe conflict)
       try {
         return await this.convertWithGM(filename);
       } catch (err) {
-        console.warn(`⚠️ gm fallback failed: ${err.message}`);
+        console.warn(`gm fallback failed: ${err.message}`);
       }
 
       // Final fallback: Sharp (limited RAW support)
       try {
         return await this.convertWithSharp(filename);
       } catch (err) {
-        console.warn(`⚠️ sharp fallback failed: ${err.message}`);
+        console.warn(`sharp fallback failed: ${err.message}`);
       }
 
       // ImageMagick not available - show helpful error
@@ -242,7 +242,7 @@ Questions? Check: https://imagemagick.org/script/index.php
       `);
 
     } catch (error) {
-      console.error(`❌ RAW: ${error.message}`);
+      console.error(`RAW error: ${error.message}`);
       throw error;
     }
   }
@@ -268,7 +268,7 @@ Questions? Check: https://imagemagick.org/script/index.php
 
           try {
             const jpgStats = fsSync.statSync(jpgPath);
-            console.log(`✓ ImageMagick converted: ${(jpgStats.size / 1024 / 1024).toFixed(2)}MB`);
+            console.log(`ImageMagick converted: ${(jpgStats.size / 1024 / 1024).toFixed(2)}MB`);
 
             const previewUrl = `/uploads/edits/${previewName}.jpg`;
             RAW_CONVERSION_CACHE.set(filename, previewUrl);
@@ -312,7 +312,7 @@ Questions? Check: https://imagemagick.org/script/index.php
       throw new Error('magick conversion failed: output file is empty');
     }
 
-    console.log(`✓ ImageMagick CLI converted: ${(jpgStats.size / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`ImageMagick CLI converted: ${(jpgStats.size / 1024 / 1024).toFixed(2)}MB`);
 
     const previewUrl = `/uploads/edits/${previewName}.jpg`;
     RAW_CONVERSION_CACHE.set(filename, previewUrl);
@@ -334,7 +334,7 @@ Questions? Check: https://imagemagick.org/script/index.php
       .toFile(jpgPath);
 
     const jpgStats = fsSync.statSync(jpgPath);
-    console.log(`✓ Sharp converted: ${(jpgStats.size / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`Sharp converted: ${(jpgStats.size / 1024 / 1024).toFixed(2)}MB`);
 
     const previewUrl = `/uploads/edits/${previewName}.jpg`;
     RAW_CONVERSION_CACHE.set(filename, previewUrl);
@@ -1175,7 +1175,7 @@ Questions? Check: https://imagemagick.org/script/index.php
         format: this.cleanMagickValue(tags?.FileTypeExtension || tags?.FileType || '')
       };
     } catch (error) {
-      console.warn(`⚠️ Metadata via exiftool failed: ${error.message}`);
+      console.warn(`Metadata via exiftool failed: ${error.message}`);
       return {};
     }
   }
@@ -1267,7 +1267,7 @@ Questions? Check: https://imagemagick.org/script/index.php
         format: this.cleanMagickValue(getTag('Format')).split(' ')[0]
       };
     } catch (error) {
-      console.warn(`⚠️ Metadata via magick failed: ${error.message}`);
+      console.warn(`Metadata via magick failed: ${error.message}`);
       return {};
     }
   }
@@ -1298,7 +1298,7 @@ Questions? Check: https://imagemagick.org/script/index.php
       const ext = path.extname(filename).toLowerCase();
       const isRaw = RAW_FORMATS.includes(ext);
 
-      console.log(`🎬 Generating preview for: ${filename} (${isRaw ? 'RAW' : 'Standard'})`);
+      console.log(`Generating preview for: ${filename} (${isRaw ? 'RAW' : 'Standard'})`);
 
       const previewName = `preview-${Date.now()}.jpg`;
       const previewPath = path.join(EDITS_DIR, previewName);
@@ -1315,11 +1315,11 @@ Questions? Check: https://imagemagick.org/script/index.php
       // Convert to JPEG for preview (high quality, full resolution)
       await image.jpeg({ quality: 85 }).toFile(previewPath);
       
-      console.log(`✓ Preview saved: ${previewPath}`);
+      console.log(`Preview saved: ${previewPath}`);
 
       return `/uploads/edits/${previewName}`;
     } catch (error) {
-      console.error(`❌ Preview generation error for ${filename}:`, error.message);
+      console.error(`Preview generation error for ${filename}:`, error.message);
       throw new Error(`Lỗi tạo preview: ${error.message}`);
     }
   }
@@ -1492,7 +1492,7 @@ Questions? Check: https://imagemagick.org/script/index.php
 
       return normalizedHistogram;
     } catch (error) {
-      console.error(`❌ Histogram error: ${error.message}`);
+      console.error(`Histogram error: ${error.message}`);
       // Return default histogram on error
       return new Array(256).fill(50);
     }

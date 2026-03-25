@@ -27,21 +27,21 @@ router.post('/edit', async (req, res) => {
 router.post('/preview', async (req, res) => {
   try {
     const { filename, edits } = req.body;
-    console.log(`📸 Preview request for: ${filename}`);
+    console.log(`Preview request for: ${filename}`);
     
     const previewPath = await imageProcessor.generatePreview(filename, edits, req.user?.id);
-    console.log(`✓ Returning preview: ${previewPath}`);
+    console.log(`Returning preview: ${previewPath}`);
     
     res.json({ previewPath });
   } catch (error) {
-    console.error(`❌ Preview error: ${error.message}`);
+    console.error(`Preview error: ${error.message}`);
     const { filename } = req.body;
     // Fallback: return original file path if it's a standard format
     const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
     const standardFormats = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif'];
     
     if (standardFormats.includes(ext)) {
-      console.log(`⚠️ Fallback to original: ${filename}`);
+      console.log(`Fallback to original: ${filename}`);
       return res.json({ previewPath: `/uploads/${filename}` });
     }
     
@@ -97,7 +97,7 @@ router.get('/histogram/:filename', async (req, res) => {
     const histogram = await imageProcessor.getHistogram(req.params.filename, {}, req.user?.id);
     res.json({ histogram });
   } catch (error) {
-    console.warn(`⚠️ Histogram generation failed:`, error.message);
+    console.warn(`Histogram generation failed:`, error.message);
     res.json({ histogram: new Array(256).fill(50) }); // Return placeholder on error
   }
 });
@@ -109,7 +109,7 @@ router.post('/histogram', async (req, res) => {
     const histogram = await imageProcessor.getHistogram(filename, edits || {}, req.user?.id);
     res.json({ histogram });
   } catch (error) {
-    console.warn(`⚠️ Histogram generation failed:`, error.message);
+    console.warn(`Histogram generation failed:`, error.message);
     res.json({ histogram: new Array(256).fill(50) });
   }
 });

@@ -64,7 +64,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   }
   
   const fileExt = path.extname(req.file.originalname).toLowerCase();
-  console.log(`✓ Upload: ${req.file.originalname} (${fileExt}) - ${Math.round(req.file.size / 1024 / 1024 * 100) / 100}MB`);
+  console.log(`Upload: ${req.file.originalname} (${fileExt}) - ${Math.round(req.file.size / 1024 / 1024 * 100) / 100}MB`);
 
   if (req.user?.id) {
     authStore.appendWorkspaceImage(req.user.id, {
@@ -73,7 +73,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
       path: `/uploads/${req.file.filename}`,
       uploadedAt: new Date().toISOString()
     }).catch((error) => {
-      console.warn(`⚠️ Workspace save failed: ${error.message}`);
+      console.warn(`Workspace save failed: ${error.message}`);
     });
   }
   
@@ -98,7 +98,7 @@ app.get('/uploads/edits/:filename', (req, res) => {
   res.setHeader('Expires', '0');
   res.sendFile(filePath, (err) => {
     if (err) {
-      console.error(`❌ Error serving ${req.params.filename}:`, err.message);
+      console.error(`Error serving ${req.params.filename}:`, err.message);
       if (!res.headersSent) {
         res.status(404).json({ error: 'File not found' });
       }
@@ -122,7 +122,7 @@ app.get('/edit*', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(`❌ Error: ${err.message}`);
+  console.error(`Error: ${err.message}`);
   
   // Handle Multer file size error
   if (err.code === 'LIMIT_FILE_SIZE') {

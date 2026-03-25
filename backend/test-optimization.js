@@ -67,18 +67,18 @@ async function runTest() {
 
     // Results
     console.log('=== RESULTS ===\n');
-    console.log(`✓ Server is responding correctly`);
-    console.log(`✓ FFmpeg optimization appears active`);
-    console.log(`✓ API response times: ${result1.duration}ms initial, ${result2.duration}ms cached\n`);
+    console.log(`Server is responding correctly`);
+    console.log(`FFmpeg optimization appears active`);
+    console.log(`API response times: ${result1.duration}ms initial, ${result2.duration}ms cached\n`);
 
     console.log('💡 Next steps:');
     console.log('1. Open http://localhost:5000 in browser');
     console.log('2. Upload a NEF/CR2/ARW file');
     console.log('3. Check conversion time in browser console');
-    console.log('4. Should see "✓ RAW converted in ~300ms" message\n');
+    console.log('4. Should see "RAW converted in ~300ms" message\n');
 
   } catch (error) {
-    console.error('❌ Test error:', error.message);
+    console.error('Test error:', error.message);
   }
 
   process.exit(0);
