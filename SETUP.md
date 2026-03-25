@@ -1,9 +1,9 @@
-# 🚀 Cài đặt và Chạy Photo Editor - 1 Bước Duy Nhất
+#  Cài đặt và Chạy Photo Editor - 1 Bước Duy Nhất
 
-## ✅ Yêu cầu:
+##  Yêu cầu:
 - Node.js 14+ cài đặt trên máy
 
-## 🎯 Chạy Ứng dụng - 1 Lệnh:
+##  Chạy Ứng dụng - 1 Lệnh:
 
 ### Bước 1: Mở Terminal tại thư mục `backend`
 
@@ -23,7 +23,7 @@ npm install
 npm start
 ```
 
-**Xong!** 🎉
+**Xong!** 
 
 Server sẽ chạy tại: **http://localhost:5000**
 
@@ -31,7 +31,7 @@ Mở trình duyệt và truy cập: **http://localhost:5000**
 
 ---
 
-## 📝 Giải thích:
+##  Giải thích:
 
 - Backend (Node.js + Express) tại port **5000**
 - Frontend đã tích hợp vào backend, serve từ cùng port
@@ -39,14 +39,14 @@ Mở trình duyệt và truy cập: **http://localhost:5000**
 
 ---
 
-## ⚡ Các Nút Thao Tác Hiển Thị:
+##  Các Nút Thao Tác Hiển Thị:
 
 ### Cửa sổ Preview (trang chính):
-- **📤 Tải lên** - Upload ảnh
-- **✏️ Mở chỉnh sửa** - Mở cửa sổ edit
-- **🔄 Xoay 90°** - Xoay nhanh
-- **🔀 Lật ngang** - Lật ảnh
-- **🗑️ Xóa** - Xóa ảnh
+- ** Tải lên** - Upload ảnh
+- ** Mở chỉnh sửa** - Mở cửa sổ edit
+- ** Xoay 90°** - Xoay nhanh
+- ** Lật ngang** - Lật ảnh
+- ** Xóa** - Xóa ảnh
 
 ### Cửa sổ Edit (chỉnh sửa):
 - Các slider điều chỉnh (Brightness, Saturation, Sharp, v.v.)
@@ -55,7 +55,7 @@ Mở trình duyệt và truy cập: **http://localhost:5000**
 
 ---
 
-## 🛠️ Tùy chỉnh Port (Nếu cần):
+##  Tùy chỉnh Port (Nếu cần):
 
 Sửa file `backend/.env`:
 ```
@@ -66,7 +66,7 @@ Rồi nhập lại `npm start`
 
 ---
 
-## 🆘 Lỗi thường gặp:
+##  Lỗi thường gặp:
 
 ### "Error: listen EADDRINUSE"
 Port 5000 đang được sử dụng. Hoặc:
@@ -91,12 +91,12 @@ npm install
 
 ---
 
-## ✨ Tính năng:
+##  Tính năng:
 
-✅ Upload ảnh (JPG, PNG, RAW...)  
-✅ Chỉnh sửa: Độ sáng, Saturation, Sharpen, Blur, v.v.  
-✅ Auto-save  
-✅ Xuất nhiều format  
-✅ Bộ lọc presets  
+ Upload ảnh (JPG, PNG, RAW...)  
+ Chỉnh sửa: Độ sáng, Saturation, Sharpen, Blur, v.v.  
+ Auto-save  
+ Xuất nhiều format  
+ Bộ lọc presets  
 
-**Vui lòng!** 📸
+**Vui lòng!** 
