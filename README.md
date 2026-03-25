@@ -4,14 +4,14 @@
 
 ## Tính năng
 
-### 🖼️ Giao diện Preview
+###  Giao diện Preview
 - Tải lên nhiều ảnh cùng một lúc
 - Xem trước nhanh (thumbnail)
 - Thông tin ảnh chi tiết (kích thước, định dạng, metadata)
 - Xoay và lật ảnh nhanh
 - Quản lý thư viện ảnh
 
-### ✏️ Giao diện Chỉnh sửa
+###  Giao diện Chỉnh sửa
 - **5 các loại chỉnh sửa chính:**
   - **Ảnh sáng**: Độ sáng, Độ tương phản, Gamma
   - **Màu sắc**: Độ bão hòa, Màu sắc (Hue)
@@ -22,19 +22,19 @@
 - Bộ lọc sẵn có (presets)
 - Lưu cài đặt hiện tại thành bộ lọc
 
-### 💾 Auto-Save
+###  Auto-Save
 - Tự động lưu thay đổi đến server
 - Lịch sử chỉnh sửa
 - Khôi phục thay đổi từ session trước
 
-### 📤 Xuất ảnh
+###  Xuất ảnh
 - Hỗ trợ định dạng: JPEG, PNG, TIFF
 - Cấu hình chất lượng (50-100%)
 - Cấu hình PPI (72-600)
 - Dự kiến kích cỡ file
 - Lựa chọn tên file và vị trí
 
-### 🎥 Định dạng hỗ trợ
+###  Định dạng hỗ trợ
 - **Thông thường**: JPG, PNG
 - **RAW**: ARW (Sony), NEF (Nikon), CR2/CR3 (Canon), DNG (Adobe), TIFF
 
